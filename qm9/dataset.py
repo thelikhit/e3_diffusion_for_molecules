@@ -1,8 +1,9 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from qm9.data.args import init_argparse
 from qm9.data.collate import PreprocessQM9
 from qm9.data.utils import initialize_datasets
 import os
+import torch
 
 
 def retrieve_dataloaders(cfg):
@@ -26,6 +27,31 @@ def retrieve_dataloaders(cfg):
         if filter_n_atoms is not None:
             print("Retrieving molecules with only %d atoms" % filter_n_atoms)
             datasets = filter_atoms(datasets, filter_n_atoms)
+            
+            
+# --- MODIFICATION START ---
+        # Define the target number of samples for the datasets
+        target_train_samples = 8
+        target_val_samples = 1
+        target_test_samples = 1
+
+        # Function to reduce dataset size
+        def reduce_dataset_size(dataset_name, target_samples):
+            if dataset_name in datasets:
+                current_dataset = datasets[dataset_name]
+                if len(current_dataset) > target_samples:
+                    indices = torch.randperm(len(current_dataset))[:target_samples]
+                    datasets[dataset_name] = Subset(current_dataset, indices)
+                    print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
+                else:
+                    print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
+            else:
+                print(f"Warning: '{dataset_name}' dataset not found in the initialized datasets.")
+
+        reduce_dataset_size('train', target_train_samples)
+        reduce_dataset_size('valid', target_val_samples)
+        reduce_dataset_size('test', target_test_samples)
+        # --- MODIFICATION END ---
 
         # Construct PyTorch dataloaders from datasets
         preprocess = PreprocessQM9(load_charges=cfg.include_charges)

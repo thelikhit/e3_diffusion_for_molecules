@@ -1,3 +1,6 @@
+# https://g.co/gemini/share/c347c8c3437d
+# https://g.co/gemini/share/566a84066310
+
 from equivariant_diffusion import utils
 import numpy as np
 import math
@@ -71,6 +74,15 @@ def cosine_beta_schedule(timesteps, s=0.008, raise_to_power: float = 1):
 
     return alphas_cumprod
 
+def linear_beta_schedule(timesteps, beta_start=0.0001, beta_end=0.02):
+
+    steps = timesteps + 1
+    betas = np.linspace(beta_start, beta_end, steps)
+    alphas = 1. - betas
+    alphas_cumprod = np.cumprod(alphas, axis=0)
+
+    return alphas_cumprod
+
 
 def gaussian_entropy(mu, sigma):
     # In case sigma needed to be broadcast (which is very likely in this code).
@@ -112,6 +124,7 @@ def gaussian_KL_for_dimension(q_mu, q_sigma, p_mu, p_sigma, d):
             The KL distance, summed over all dimensions except the batch dim.
         """
     mu_norm2 = sum_except_batch((q_mu - p_mu)**2)
+    breakpoint()
     assert len(q_sigma.size()) == 1
     assert len(p_sigma.size()) == 1
     return d * torch.log(p_sigma / q_sigma) + 0.5 * (d * q_sigma**2 + mu_norm2) / (p_sigma**2) - 0.5 * d
@@ -166,6 +179,42 @@ class SinusoidalPosEmb(torch.nn.Module):
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
         return emb
     
+
+class ScaledNoiseSchedule(torch.nn.Module):
+
+    def __init__(self, timesteps, precision):
+        super(ScaledNoiseSchedule, self).__init__()
+
+        print('ScaledNoiseSchedule.__init__')
+
+        self.timesteps = timesteps
+        self.precision = precision
+
+        alphas2 = linear_beta_schedule(timesteps)
+
+        print('alphas2', alphas2)
+        sigmas2 = 1 - alphas2
+
+        log_alphas2 = np.log(alphas2)
+        log_sigmas2 = np.log(sigmas2)
+
+        log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
+
+        print('gamma', -log_alphas2_to_sigmas2)
+
+        self.gamma = torch.nn.Parameter(
+            torch.from_numpy(-log_alphas2_to_sigmas2).float(),
+            requires_grad=False)
+
+    def forward(self, t, num_atoms):
+
+        t_int = torch.round(t * self.timesteps).long()
+        num_atoms = num_atoms.reshape_as(self.gamma[t_int])
+        # scaled_noise = self.gamma[t_int] * torch.reshape(num_atoms, (10, 1)) / 29
+        scaled_noise = self.gamma[t_int] * num_atoms / 29
+
+        return scaled_noise
+
 
 class PredefinedNoiseSchedule(torch.nn.Module):
     """
@@ -273,6 +322,8 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         if noise_schedule == 'learned':
             self.gamma = GammaNetwork()
+        elif noise_schedule == 'scaled':
+            self.gamma = ScaledNoiseSchedule(timesteps=timesteps, precision=noise_precision)
         else:
             self.gamma = PredefinedNoiseSchedule(noise_schedule, timesteps=timesteps,
                                                  precision=noise_precision)
@@ -291,12 +342,17 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        if noise_schedule != 'learned':
-            self.check_issues_norm_values()
+        # if noise_schedule != 'learned':
+            # self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):
         zeros = torch.zeros((1, 1))
-        gamma_0 = self.gamma(zeros)
+        ones = torch.ones_like(zeros)
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(zeros, ones)
+        else:
+            gamma_0 = self.gamma(zeros)        
+            
         sigma_0 = self.sigma(gamma_0, target_tensor=zeros).item()
 
         # Checked if 1 / norm_value is still larger than 10 * standard
@@ -402,15 +458,21 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return sigma2_t_given_s, sigma_t_given_s, alpha_t_given_s
 
-    def kl_prior(self, xh, node_mask):
+    def kl_prior(self, xh, node_mask, num_atoms=None):
         """Computes the KL between q(z1 | x) and the prior p(z1) = Normal(0, 1).
 
         This is essentially a lot of work for something that is in practice negligible in the loss. However, you
         compute it so that you see it when you've made a mistake in your noise schedule.
         """
-        # Compute the last alpha value, alpha_T.
+
         ones = torch.ones((xh.size(0), 1), device=xh.device)
-        gamma_T = self.gamma(ones)
+
+        # Compute the last alpha value, alpha_T.
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_T = self.gamma(ones, num_atoms)
+        else: 
+            gamma_T = self.gamma(ones)
+
         alpha_T = self.alpha(gamma_T, xh)
 
         # Compute means.
@@ -425,7 +487,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         zeros, ones = torch.zeros_like(mu_T_h), torch.ones_like(sigma_T_h)
         kl_distance_h = gaussian_KL(mu_T_h, sigma_T_h, zeros, ones, node_mask)
 
-        # Compute KL for x-part.
+        # Compute KL for x-part
         zeros, ones = torch.zeros_like(mu_T_x), torch.ones_like(sigma_T_x)
         subspace_d = self.subspace_dimensionality(node_mask)
         kl_distance_x = gaussian_KL_for_dimension(mu_T_x, sigma_T_x, zeros, ones, d=subspace_d)
@@ -456,7 +518,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             error = sum_except_batch((eps - eps_t) ** 2)
         return error
 
-    def log_constants_p_x_given_z0(self, x, node_mask):
+    def log_constants_p_x_given_z0(self, x, node_mask, num_atoms=None):
         """Computes p(x|z0)."""
         batch_size = x.size(0)
 
@@ -465,17 +527,28 @@ class EnVariationalDiffusion(torch.nn.Module):
         degrees_of_freedom_x = (n_nodes - 1) * self.n_dims
 
         zeros = torch.zeros((x.size(0), 1), device=x.device)
-        gamma_0 = self.gamma(zeros)
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(zeros, num_atoms)
+        else:
+            gamma_0 = self.gamma(zeros)
 
         # Recall that sigma_x = sqrt(sigma_0^2 / alpha_0^2) = SNR(-0.5 gamma_0).
         log_sigma_x = 0.5 * gamma_0.view(batch_size)
 
         return degrees_of_freedom_x * (- log_sigma_x - 0.5 * np.log(2 * np.pi))
 
-    def sample_p_xh_given_z0(self, z0, node_mask, edge_mask, context, fix_noise=False):
+    def sample_p_xh_given_z0(self, z0, node_mask, edge_mask, context, fix_noise=False, num_atoms=None):
         """Samples x ~ p(x|z0)."""
+        
         zeros = torch.zeros(size=(z0.size(0), 1), device=z0.device)
-        gamma_0 = self.gamma(zeros)
+        num_atoms = torch.full(zeros.shape, num_atoms, dtype=zeros.dtype, device=z0.device)
+
+
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(zeros, num_atoms)
+        else:
+            gamma_0 = self.gamma(zeros)
+
         # Computes sqrt(sigma_0^2 / alpha_0^2)
         sigma_x = self.SNR(-0.5 * gamma_0).unsqueeze(1)
         net_out = self.phi(z0, zeros, node_mask, edge_mask, context)
@@ -563,8 +636,11 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return log_p_xh_given_z
 
-    def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always):
+    def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always, num_atoms=None):
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
+
+        #if num_atoms is not None:
+        #    num_atoms = num_atoms.reshape(-1,1)
 
         # This part is about whether to include loss term 0 always.
         if t0_always:
@@ -587,8 +663,12 @@ class EnVariationalDiffusion(torch.nn.Module):
         t = t_int / self.T
 
         # Compute gamma_s and gamma_t via the network.
-        gamma_s = self.inflate_batch_array(self.gamma(s), x)
-        gamma_t = self.inflate_batch_array(self.gamma(t), x)
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_s = self.inflate_batch_array(self.gamma(s, num_atoms), x)
+            gamma_t = self.inflate_batch_array(self.gamma(t, num_atoms), x)
+        else:
+            gamma_s = self.inflate_batch_array(self.gamma(s), x)
+            gamma_t = self.inflate_batch_array(self.gamma(t), x)
 
         # Compute alpha_t and sigma_t from gamma.
         alpha_t = self.alpha(gamma_t, x)
@@ -621,14 +701,20 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # The _constants_ depending on sigma_0 from the
         # cross entropy term E_q(z0 | x) [log p(x | z0)].
-        neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask)
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask, num_atoms=num_atoms)
+        else:
+            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask)
 
         # Reset constants during training with l2 loss.
         if self.training and self.loss_type == 'l2':
             neg_log_constants = torch.zeros_like(neg_log_constants)
 
         # The KL between q(z1 | x) and p(z1) = Normal(0, 1). Should be close to zero.
-        kl_prior = self.kl_prior(xh, node_mask)
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            kl_prior = self.kl_prior(xh, node_mask, num_atoms=num_atoms)
+        else:
+            kl_prior = self.kl_prior(xh, node_mask)
 
         # Combining the terms
         if t0_always:
@@ -638,7 +724,11 @@ class EnVariationalDiffusion(torch.nn.Module):
 
             # Compute noise values for t = 0.
             t_zeros = torch.zeros_like(s)
-            gamma_0 = self.inflate_batch_array(self.gamma(t_zeros), x)
+                    
+            if isinstance(self.gamma, ScaledNoiseSchedule):
+                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, num_atoms), x)
+            else:
+                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros), x)
             alpha_0 = self.alpha(gamma_0, x)
             sigma_0 = self.sigma(gamma_0, x)
 
@@ -685,7 +775,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return loss, {'t': t_int.squeeze(), 'loss_t': loss.squeeze(),
                       'error': error.squeeze()}
 
-    def forward(self, x, h, node_mask=None, edge_mask=None, context=None):
+    def forward(self, x, h, node_mask=None, edge_mask=None, context=None, num_atoms=None):
         """
         Computes the loss (type l2 or NLL) if training. And if eval then always computes NLL.
         """
@@ -698,10 +788,10 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         if self.training:
             # Only 1 forward pass when t0_always is False.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=False)
+            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=False, num_atoms=num_atoms)
         else:
             # Less variance in the estimator, costs two forward passes.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=True)
+            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=True, num_atoms=num_atoms)
 
         neg_log_pxh = loss
 
@@ -711,10 +801,17 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return neg_log_pxh
 
-    def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False):
+    def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False, num_atoms=None):
         """Samples from zs ~ p(zs | zt). Only used during sampling."""
-        gamma_s = self.gamma(s)
-        gamma_t = self.gamma(t)
+
+        num_atoms = torch.full(s.shape, num_atoms, dtype=s.dtype, device=s.device)
+        
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_s = self.gamma(s, num_atoms)
+            gamma_t = self.gamma(t, num_atoms)
+        else:
+            gamma_s = self.gamma(s)
+            gamma_t = self.gamma(t)
 
         sigma2_t_given_s, sigma_t_given_s, alpha_t_given_s = \
             self.sigma_and_alpha_t_given_s(gamma_t, gamma_s, zt)
@@ -762,6 +859,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         """
         Draw samples from the generative model.
         """
+
         if fix_noise:
             # Noise is broadcasted over the batch axis, useful for visualizations.
             z = self.sample_combined_position_feature_noise(1, n_nodes, node_mask)
@@ -777,10 +875,10 @@ class EnVariationalDiffusion(torch.nn.Module):
             s_array = s_array / self.T
             t_array = t_array / self.T
 
-            z = self.sample_p_zs_given_zt(s_array, t_array, z, node_mask, edge_mask, context, fix_noise=fix_noise)
+            z = self.sample_p_zs_given_zt(s_array, t_array, z, node_mask, edge_mask, context, fix_noise=fix_noise, num_atoms=n_nodes)
 
         # Finally sample p(x, h | z_0).
-        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, fix_noise=fix_noise)
+        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, fix_noise=fix_noise, num_atoms=n_nodes)
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 
@@ -815,7 +913,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             t_array = t_array / self.T
 
             z = self.sample_p_zs_given_zt(
-                s_array, t_array, z, node_mask, edge_mask, context)
+                s_array, t_array, z, node_mask, edge_mask, context, num_atoms=num_atoms)
 
             diffusion_utils.assert_mean_zero_with_mask(z[:, :, :self.n_dims], node_mask)
 
@@ -824,7 +922,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             chain[write_index] = self.unnormalize_z(z, node_mask)
 
         # Finally sample p(x, h | z_0).
-        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context)
+        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, num_atoms=num_atoms)
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 
@@ -835,12 +933,17 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return chain_flat
 
-    def log_info(self):
+    def log_info(self, num_atoms=None):
         """
         Some info logging of the model.
         """
-        gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device))
-        gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device))
+        
+        if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device), num_atoms)
+            gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device), num_atoms)
+        else:
+            gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device))
+            gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device))
 
         log_SNR_max = -gamma_0
         log_SNR_min = -gamma_1

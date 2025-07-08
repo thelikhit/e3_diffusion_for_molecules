@@ -24,6 +24,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         edge_mask = data['edge_mask'].to(device, dtype)
         one_hot = data['one_hot'].to(device, dtype)
         charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+        num_atoms = data['num_atoms'].to(device, dtype)
 
         x = remove_mean_with_mask(x, node_mask)
 
@@ -51,7 +52,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         # transform batch through flow
         nll, reg_term, mean_abs_z = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
-                                                                x, h, node_mask, edge_mask, context)
+                                                                x, h, node_mask, edge_mask, context, num_atoms)
         # standard nll from forward KL
         loss = nll + args.ode_regularization * reg_term
         loss.backward()
@@ -78,9 +79,9 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             if len(args.conditioning) > 0:
                 save_and_sample_conditional(args, device, model_ema, prop_dist, dataset_info, epoch=epoch)
             save_and_sample_chain(model_ema, args, device, dataset_info, prop_dist, epoch=epoch,
-                                  batch_id=str(i))
+                                  batch_id=str(i), num_atoms=num_atoms)
             sample_different_sizes_and_save(model_ema, nodes_dist, args, device, dataset_info,
-                                            prop_dist, epoch=epoch)
+                                            prop_dist, epoch=epoch, num_atoms=num_atoms)
             print(f'Sampling took {time.time() - start:.2f} seconds')
 
             vis.visualize(f"outputs/{args.exp_name}/epoch_{epoch}_{i}", dataset_info=dataset_info, wandb=wandb)
@@ -115,6 +116,8 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             edge_mask = data['edge_mask'].to(device, dtype)
             one_hot = data['one_hot'].to(device, dtype)
             charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+            num_atoms = data['num_atoms'].to(device, dtype)
+
 
             if args.augment_noise > 0:
                 # Add noise eps ~ N(0, augment_noise) around points.
@@ -136,8 +139,8 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
                 context = None
 
             # transform batch through flow
-            nll, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h,
-                                                    node_mask, edge_mask, context)
+            nll, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
+                                                    node_mask, edge_mask, context, num_atoms=num_atoms)
             # standard nll from forward KL
 
             nll_epoch += nll.item() * batch_size
@@ -150,9 +153,9 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
 
 def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
-                          epoch=0, id_from=0, batch_id=''):
+                          epoch=0, id_from=0, batch_id='', num_atoms=None):
     one_hot, charges, x = sample_chain(args=args, device=device, flow=model,
-                                       n_tries=1, dataset_info=dataset_info, prop_dist=prop_dist)
+                                       n_tries=1, dataset_info=dataset_info, prop_dist=prop_dist, num_atoms=num_atoms)
 
     vis.save_xyz_file(f'outputs/{args.exp_name}/epoch_{epoch}_{batch_id}/chain/',
                       one_hot, charges, x, dataset_info, id_from, name='chain')
@@ -161,20 +164,20 @@ def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
 
 
 def sample_different_sizes_and_save(model, nodes_dist, args, device, dataset_info, prop_dist,
-                                    n_samples=5, epoch=0, batch_size=100, batch_id=''):
+                                    n_samples=5, epoch=0, batch_size=100, batch_id='', num_atoms=None):
     batch_size = min(batch_size, n_samples)
     for counter in range(int(n_samples/batch_size)):
         nodesxsample = nodes_dist.sample(batch_size)
         one_hot, charges, x, node_mask = sample(args, device, model, prop_dist=prop_dist,
                                                 nodesxsample=nodesxsample,
-                                                dataset_info=dataset_info)
+                                                dataset_info=dataset_info, num_atoms=num_atoms)
         print(f"Generated molecule: Positions {x[:-1, :, :]}")
         vis.save_xyz_file(f'outputs/{args.exp_name}/epoch_{epoch}_{batch_id}/', one_hot, charges, x, dataset_info,
                           batch_size * counter, name='molecule')
 
 
 def analyze_and_save(epoch, model_sample, nodes_dist, args, device, dataset_info, prop_dist,
-                     n_samples=1000, batch_size=100):
+                     n_samples=1000, batch_size=100, num_atoms=None):
     print(f'Analyzing molecule stability at epoch {epoch}...')
     batch_size = min(batch_size, n_samples)
     assert n_samples % batch_size == 0
