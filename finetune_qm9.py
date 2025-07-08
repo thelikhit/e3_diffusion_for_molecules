@@ -31,10 +31,12 @@ with open(pickle_file, 'rb') as f:
 
 # set hyper parameters from default values
 # DO NOT CHANGE ARCHITECTURE 
-args.exp_name='test'
+args.exp_name='finetuned'
 args.n_epochs=5
 args.test_epochs=1
 args.batch_size=8
+
+args.no_wandb=True
 
 
 # learned noise schedule

@@ -155,7 +155,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
                           epoch=0, id_from=0, batch_id='', num_atoms=None):
     one_hot, charges, x = sample_chain(args=args, device=device, flow=model,
-                                       n_tries=1, dataset_info=dataset_info, prop_dist=prop_dist, num_atoms=num_atoms)
+                                       n_tries=1, dataset_info=dataset_info, prop_dist=prop_dist)
 
     vis.save_xyz_file(f'outputs/{args.exp_name}/epoch_{epoch}_{batch_id}/chain/',
                       one_hot, charges, x, dataset_info, id_from, name='chain')
