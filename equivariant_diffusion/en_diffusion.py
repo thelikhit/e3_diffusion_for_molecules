@@ -124,7 +124,13 @@ def gaussian_KL_for_dimension(q_mu, q_sigma, p_mu, p_sigma, d):
             The KL distance, summed over all dimensions except the batch dim.
         """
     mu_norm2 = sum_except_batch((q_mu - p_mu)**2)
-    breakpoint()
+
+    if q_sigma.dim() == 0:
+        q_sigma = q_sigma.unsqueeze(0)
+
+    if p_sigma.dim() == 0:
+        p_sigma = p_sigma.unsqueeze(0)
+
     assert len(q_sigma.size()) == 1
     assert len(p_sigma.size()) == 1
     return d * torch.log(p_sigma / q_sigma) + 0.5 * (d * q_sigma**2 + mu_norm2) / (p_sigma**2) - 0.5 * d
@@ -875,9 +881,11 @@ class EnVariationalDiffusion(torch.nn.Module):
             s_array = s_array / self.T
             t_array = t_array / self.T
 
+            print("Iteratively sample p(z_s | z_t) for t = 1, ..., T, with s = t - 1 | s=", s)
             z = self.sample_p_zs_given_zt(s_array, t_array, z, node_mask, edge_mask, context, fix_noise=fix_noise, num_atoms=n_nodes)
 
         # Finally sample p(x, h | z_0).
+        print("Finally sample p(x, h | z_0).")
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, fix_noise=fix_noise, num_atoms=n_nodes)
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
@@ -913,7 +921,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             t_array = t_array / self.T
 
             z = self.sample_p_zs_given_zt(
-                s_array, t_array, z, node_mask, edge_mask, context, num_atoms=num_atoms)
+                s_array, t_array, z, node_mask, edge_mask, context, num_atoms=n_nodes)
 
             diffusion_utils.assert_mean_zero_with_mask(z[:, :, :self.n_dims], node_mask)
 
@@ -922,7 +930,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             chain[write_index] = self.unnormalize_z(z, node_mask)
 
         # Finally sample p(x, h | z_0).
-        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, num_atoms=num_atoms)
+        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, num_atoms=n_nodes)
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 
