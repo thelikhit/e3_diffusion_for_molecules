@@ -124,7 +124,13 @@ def gaussian_KL_for_dimension(q_mu, q_sigma, p_mu, p_sigma, d):
             The KL distance, summed over all dimensions except the batch dim.
         """
     mu_norm2 = sum_except_batch((q_mu - p_mu)**2)
-    breakpoint()
+
+    if q_sigma.dim() == 0:
+        q_sigma = q_sigma.unsqueeze(0)
+
+    if p_sigma.dim() == 0:
+        p_sigma = p_sigma.unsqueeze(0)
+
     assert len(q_sigma.size()) == 1
     assert len(p_sigma.size()) == 1
     return d * torch.log(p_sigma / q_sigma) + 0.5 * (d * q_sigma**2 + mu_norm2) / (p_sigma**2) - 0.5 * d
