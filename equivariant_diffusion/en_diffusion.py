@@ -196,7 +196,7 @@ class ScaledNoiseSchedule(torch.nn.Module):
         self.timesteps = timesteps
         self.precision = precision
 
-        alphas2 = linear_beta_schedule(timesteps)
+        alphas2 = cosine_beta_schedule(timesteps)
 
         print('alphas2', alphas2)
         sigmas2 = 1 - alphas2
@@ -216,9 +216,16 @@ class ScaledNoiseSchedule(torch.nn.Module):
 
         t_int = torch.round(t * self.timesteps).long()
         num_atoms = num_atoms.reshape_as(self.gamma[t_int])
-        # scaled_noise = self.gamma[t_int] * torch.reshape(num_atoms, (10, 1)) / 29
-        scaled_noise = self.gamma[t_int] * num_atoms / 29
 
+        # min-max scaling
+        mw_norm = num_atoms / 29 
+        mw_norm_min, mw_norm_max = 0, 1
+
+        # scale factor between [sf_min, sf_max]
+        sf_min, sf_max = 0.90, 1.1
+        sf = sf_min + (mw_norm - mw_norm_min) * ((sf_max - sf_min) / (mw_norm_max - mw_norm_min))
+
+        scaled_noise = self.gamma[t_int] * sf
         return scaled_noise
 
 
@@ -348,8 +355,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        # if noise_schedule != 'learned':
-            # self.check_issues_norm_values()
+        if noise_schedule != 'learned':
+            self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):
         zeros = torch.zeros((1, 1))
