@@ -80,6 +80,7 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                 edge_mask = data['edge_mask'].to(device, dtype)
                 one_hot = data['one_hot'].to(device, dtype)
                 charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+                num_atoms = data['num_atoms'].to(device, dtype)
 
                 batch_size = x.size(0)
 
@@ -97,7 +98,7 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
 
                 # transform batch through flow
                 nll, _, _ = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, node_mask,
-                                                        edge_mask, context)
+                                                        edge_mask, context, num_atoms)
                 # standard nll from forward KL
 
                 nll_epoch += nll.item() * batch_size
