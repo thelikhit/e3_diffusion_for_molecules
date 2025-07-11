@@ -245,8 +245,8 @@ def main():
         print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
         if epoch % args.test_epochs == 0:
-            if isinstance(model, en_diffusion.EnVariationalDiffusion):
-                wandb.log(model.log_info(), commit=True)
+            # if isinstance(model, en_diffusion.EnVariationalDiffusion):
+                # wandb.log(model.log_info(), commit=True)
 
             if not args.break_train_epoch:
                 analyze_and_save(args=args, epoch=epoch, model_sample=model_ema, nodes_dist=nodes_dist,
