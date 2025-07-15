@@ -308,14 +308,12 @@ class PolynomialNoiseSchedule(torch.nn.Module):
     """
     Architecture for a(c), b(c), and d(c) in MuLAN's noise schedule.
     """
-    min_gamma = -13.3
-    max_gamma = 5.0
     
     def __init__(self):
         super(PolynomialNoiseSchedule, self).__init__()
 
         self.in_features = 1
-        self.h_features = 3072
+        self.h_features = 1024
         self.out_features = 1
 
         self.l1 = torch.nn.Linear(self.in_features, self.in_features)
@@ -325,7 +323,22 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         self.l3_b = torch.nn.Linear(self.h_features, self.out_features)
         self.l3_d = torch.nn.Linear(self.h_features, self.out_features)
 
-    def evaluate_expression(self, a, b, d, t):
+        self.gamma_min = torch.nn.Parameter(torch.tensor([-13.3]))
+        self.gamma_max = torch.nn.Parameter(torch.tensor([5.]))
+
+        self.show_schedule()
+
+    def show_schedule(self, num_steps=100):
+        t = torch.linspace(0, 1, num_steps).view(num_steps, 1)
+        gamma = self.forward(t, 29)
+        print('Gamma schedule, when num_atoms=29:')
+        print(gamma.detach().cpu().numpy().reshape(num_steps))
+
+        gamma = self.forward(t, 15)
+        print('Gamma schedule, when num_atoms=15:')
+        print(gamma.detach().cpu().numpy().reshape(num_steps))
+
+    def evaluate_polynomial(self, a, b, d, t):
 
         coeff5 = (a**2) / 5
         coeff4 = (a * b) / 2
@@ -342,11 +355,12 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         # Sum the terms to get gamma_t
         polynomial = term5 + term4 + term3 + term2 + term1
 
-        gamma_t = self.min_gamma + (self.max_gamma - self.min_gamma) * (polynomial/self.max_gamma)
-
-        return gamma_t
+        return polynomial
 
     def compute_coefficients(self, num_atoms):
+
+        if isinstance(num_atoms, int):
+            num_atoms = torch.tensor([[float(num_atoms)]], dtype=torch.float32)
 
         num_atoms = num_atoms.view(num_atoms.shape[0], 1)
 
@@ -362,17 +376,15 @@ class PolynomialNoiseSchedule(torch.nn.Module):
     def forward(self, t, c):
 
         a, b, d = self.compute_coefficients(c)
-        gamma = self.evaluate_expression(a, b, d, t)
-        gamma = torch.clip(gamma, self.min_gamma, self.max_gamma)
+        polynomial_t = self.evaluate_polynomial(a, b, d, t)
 
-        print('a=', a)
-        print('b=', b)
-        print('d=', d)
-        print('context=', c)
-        print('t=', t)
-        print('gamma=', gamma)
+        zeros, ones = torch.zeros_like(t), torch.ones_like(t)
+        polynomial_0 = self.evaluate_polynomial(a, b, d, zeros)
+        polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
 
-        return gamma
+        gamma_t = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t / polynomial_1)
+
+        return gamma_t
 
 
 def cdf_standard_gaussian(x):
