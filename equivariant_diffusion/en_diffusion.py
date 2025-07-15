@@ -191,8 +191,6 @@ class ScaledNoiseSchedule(torch.nn.Module):
     def __init__(self, timesteps, precision):
         super(ScaledNoiseSchedule, self).__init__()
 
-        print('ScaledNoiseSchedule.__init__')
-
         self.timesteps = timesteps
         self.precision = precision
 
@@ -305,6 +303,76 @@ class GammaNetwork(torch.nn.Module):
         gamma = self.gamma_0 + (self.gamma_1 - self.gamma_0) * normalized_gamma
 
         return gamma
+    
+class PolynomialNoiseSchedule(torch.nn.Module):
+    """
+    Architecture for a(c), b(c), and d(c) in MuLAN's noise schedule.
+    """
+    min_gamma = -13.3
+    max_gamma = 5.0
+    
+    def __init__(self):
+        super(PolynomialNoiseSchedule, self).__init__()
+
+        self.in_features = 1
+        self.h_features = 3072
+        self.out_features = 1
+
+        self.l1 = torch.nn.Linear(self.in_features, self.in_features)
+        self.l2 = torch.nn.Linear(self.in_features, self.h_features)
+        
+        self.l3_a = torch.nn.Linear(self.h_features, self.out_features)
+        self.l3_b = torch.nn.Linear(self.h_features, self.out_features)
+        self.l3_d = torch.nn.Linear(self.h_features, self.out_features)
+
+    def evaluate_expression(self, a, b, d, t):
+
+        coeff5 = (a**2) / 5
+        coeff4 = (a * b) / 2
+        coeff3 = (b**2 + 2 * a * d) / 3
+        coeff2 = (b * d)
+        coeff1 = d ** 2
+
+        term5 = coeff5 * (t**5)
+        term4 = coeff4 * (t**4)
+        term3 = coeff3 * (t**3)
+        term2 = coeff2 * (t**2)
+        term1 = coeff1 * t
+
+        # Sum the terms to get gamma_t
+        polynomial = term5 + term4 + term3 + term2 + term1
+
+        gamma_t = self.min_gamma + (self.max_gamma - self.min_gamma) * (polynomial/self.max_gamma)
+
+        return gamma_t
+
+    def compute_coefficients(self, num_atoms):
+
+        num_atoms = num_atoms.view(num_atoms.shape[0], 1)
+
+        x = F.silu(self.l1(num_atoms))
+        x = F.silu(self.l2(x))
+
+        a = self.l3_a(x)
+        b = self.l3_b(x)
+        d = self.l3_d(x)
+
+        return a, b, d
+
+    def forward(self, t, c):
+
+        a, b, d = self.compute_coefficients(c)
+        gamma = self.evaluate_expression(a, b, d, t)
+        gamma = torch.clip(gamma, self.min_gamma, self.max_gamma)
+
+        print('a=', a)
+        print('b=', b)
+        print('d=', d)
+        print('context=', c)
+        print('t=', t)
+        print('gamma=', gamma)
+
+        return gamma
 
 
 def cdf_standard_gaussian(x):
@@ -337,6 +405,8 @@ class EnVariationalDiffusion(torch.nn.Module):
             self.gamma = GammaNetwork()
         elif noise_schedule == 'scaled':
             self.gamma = ScaledNoiseSchedule(timesteps=timesteps, precision=noise_precision)
+        elif noise_schedule == 'custom_learned':
+            self.gamma = PolynomialNoiseSchedule()
         else:
             self.gamma = PredefinedNoiseSchedule(noise_schedule, timesteps=timesteps,
                                                  precision=noise_precision)
@@ -355,13 +425,15 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        if noise_schedule != 'learned':
+        if noise_schedule not in ['learned', 'custom_learned']:
             self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):
         zeros = torch.zeros((1, 1))
         ones = torch.ones_like(zeros)
         if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(zeros, ones)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
             gamma_0 = self.gamma(zeros, ones)
         else:
             gamma_0 = self.gamma(zeros)        
@@ -483,6 +555,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Compute the last alpha value, alpha_T.
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_T = self.gamma(ones, num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
+            gamma_T = self.gamma(ones, num_atoms)
         else: 
             gamma_T = self.gamma(ones)
 
@@ -542,6 +616,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         zeros = torch.zeros((x.size(0), 1), device=x.device)
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_0 = self.gamma(zeros, num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
+            gamma_0 = self.gamma(zeros, num_atoms)
         else:
             gamma_0 = self.gamma(zeros)
 
@@ -559,6 +635,8 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_0 = self.gamma(zeros, num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
+            gamma_0 =  self.gamma(zeros, num_atoms)
         else:
             gamma_0 = self.gamma(zeros)
 
@@ -679,6 +757,9 @@ class EnVariationalDiffusion(torch.nn.Module):
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_s = self.inflate_batch_array(self.gamma(s, num_atoms), x)
             gamma_t = self.inflate_batch_array(self.gamma(t, num_atoms), x)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
+            gamma_s = self.inflate_batch_array(self.gamma(s, num_atoms), x)
+            gamma_t = self.inflate_batch_array(self.gamma(t, num_atoms), x)
         else:
             gamma_s = self.inflate_batch_array(self.gamma(s), x)
             gamma_t = self.inflate_batch_array(self.gamma(t), x)
@@ -690,7 +771,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Sample zt ~ Normal(alpha_t x, sigma_t)
         eps = self.sample_combined_position_feature_noise(
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
-
+        
         # Concatenate x, h[integer] and h[categorical].
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
         # Sample z_t given x, h for timestep t, from q(z_t | x, h)
@@ -716,6 +797,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         # cross entropy term E_q(z0 | x) [log p(x | z0)].
         if isinstance(self.gamma, ScaledNoiseSchedule):
             neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask, num_atoms=num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
+            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask, num_atoms=num_atoms)
         else:
             neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask)
 
@@ -725,6 +808,8 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # The KL between q(z1 | x) and p(z1) = Normal(0, 1). Should be close to zero.
         if isinstance(self.gamma, ScaledNoiseSchedule):
+            kl_prior = self.kl_prior(xh, node_mask, num_atoms=num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
             kl_prior = self.kl_prior(xh, node_mask, num_atoms=num_atoms)
         else:
             kl_prior = self.kl_prior(xh, node_mask)
@@ -739,6 +824,8 @@ class EnVariationalDiffusion(torch.nn.Module):
             t_zeros = torch.zeros_like(s)
                     
             if isinstance(self.gamma, ScaledNoiseSchedule):
+                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, num_atoms), x)
+            elif isinstance(self.gamma, PolynomialNoiseSchedule):
                 gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, num_atoms), x)
             else:
                 gamma_0 = self.inflate_batch_array(self.gamma(t_zeros), x)
@@ -820,6 +907,9 @@ class EnVariationalDiffusion(torch.nn.Module):
         num_atoms = torch.full(s.shape, num_atoms, dtype=s.dtype, device=s.device)
         
         if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_s = self.gamma(s, num_atoms)
+            gamma_t = self.gamma(t, num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
             gamma_s = self.gamma(s, num_atoms)
             gamma_t = self.gamma(t, num_atoms)
         else:
@@ -952,6 +1042,9 @@ class EnVariationalDiffusion(torch.nn.Module):
         """
         
         if isinstance(self.gamma, ScaledNoiseSchedule):
+            gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device), num_atoms)
+            gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device), num_atoms)
+        elif isinstance(self.gamma, PolynomialNoiseSchedule):
             gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device), num_atoms)
             gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device), num_atoms)
         else:
