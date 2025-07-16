@@ -1,4 +1,1 @@
-source .e3_diffusion_for_molecules/bin/activate
-python finetune_qm9.py
-salloc -p gpu_a100_il -n 1 -t 0:30:00 --gres=gpu:1
-salloc -p cpu_il -n 1 -t 120
+
