@@ -417,7 +417,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             self.gamma = GammaNetwork()
         elif noise_schedule == 'scaled':
             self.gamma = ScaledNoiseSchedule(timesteps=timesteps, precision=noise_precision)
-        elif noise_schedule == 'custom_learned':
+        elif noise_schedule == 'learned_polynomial':
             self.gamma = PolynomialNoiseSchedule()
         else:
             self.gamma = PredefinedNoiseSchedule(noise_schedule, timesteps=timesteps,
@@ -437,7 +437,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        if noise_schedule not in ['learned', 'custom_learned']:
+        if noise_schedule not in ['learned', 'learned_polynomial']:
             self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):

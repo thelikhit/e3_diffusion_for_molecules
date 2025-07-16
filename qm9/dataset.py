@@ -31,9 +31,9 @@ def retrieve_dataloaders(cfg):
             
 # --- MODIFICATION START ---
         # Define the target number of samples for the datasets
-        target_train_samples = 1000
-        target_val_samples = 100
-        target_test_samples = 100
+        target_train_samples = 400
+        target_val_samples = 50
+        target_test_samples = 50
 
         # Function to reduce dataset size
         def reduce_dataset_size(dataset_name, target_samples):
@@ -42,7 +42,7 @@ def retrieve_dataloaders(cfg):
                 if len(current_dataset) > target_samples:
                     indices = torch.randperm(len(current_dataset))[:target_samples]
                     datasets[dataset_name] = Subset(current_dataset, indices)
-                    print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
+                    print(f"Reduced '{dataset_name}' dataset from ' {len(current_dataset)} ' to ' {len(datasets[dataset_name])} samples.")
                 else:
                     print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
             else:
