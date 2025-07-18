@@ -8,6 +8,7 @@ import torch
 from egnn import models
 from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
+from configs.datasets_config import get_dataset_info
 
 
 # Defining some useful util functions.
@@ -191,6 +192,12 @@ class ScaledNoiseSchedule(torch.nn.Module):
     def __init__(self, timesteps, precision):
         super(ScaledNoiseSchedule, self).__init__()
 
+        dataset_info = get_dataset_info('qm9', False)
+        n_nodes_data = dataset_info['n_nodes']
+
+        self.min_n_nodes = min(n_nodes_data.keys())
+        self.max_n_nodes = max(n_nodes_data.keys())
+
         self.timesteps = timesteps
         self.precision = precision
 
@@ -210,18 +217,18 @@ class ScaledNoiseSchedule(torch.nn.Module):
             torch.from_numpy(-log_alphas2_to_sigmas2).float(),
             requires_grad=False)
 
-    def forward(self, t, num_atoms):
+    def forward(self, t, n_nodes):
 
         t_int = torch.round(t * self.timesteps).long()
-        num_atoms = num_atoms.reshape_as(self.gamma[t_int])
+        n_nodes = n_nodes.reshape_as(self.gamma[t_int])
 
         # min-max scaling
-        mw_norm = num_atoms / 29 
-        mw_norm_min, mw_norm_max = 0, 1
+        n_nodes_scaled = (n_nodes - self.min_n_nodes) / (self.max_n_nodes - self.min_n_nodes)
+        n_nodes_scaled_min, n_nodes_scaled_max = 0, 1
 
         # scale factor between [sf_min, sf_max]
         sf_min, sf_max = 0.90, 1.1
-        sf = sf_min + (mw_norm - mw_norm_min) * ((sf_max - sf_min) / (mw_norm_max - mw_norm_min))
+        sf = sf_min + (n_nodes_scaled - n_nodes_scaled_min) * ((sf_max - sf_min) / (n_nodes_scaled_max - n_nodes_scaled_min))
 
         scaled_noise = self.gamma[t_int] * sf
         return scaled_noise
@@ -321,10 +328,12 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         
         self.l3_a = torch.nn.Linear(self.h_features, self.out_features)
         self.l3_b = torch.nn.Linear(self.h_features, self.out_features)
+        self.softplus = torch.nn.Softplus()
         self.l3_d = torch.nn.Linear(self.h_features, self.out_features)
 
         self.gamma_min = torch.nn.Parameter(torch.tensor([-13.3]))
         self.gamma_max = torch.nn.Parameter(torch.tensor([5.]))
+        self.grad_min_epsilon = 0
 
         self.show_schedule()
 
@@ -344,7 +353,7 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         coeff4 = (a * b) / 2
         coeff3 = (b**2 + 2 * a * d) / 3
         coeff2 = (b * d)
-        coeff1 = d ** 2
+        coeff1 = d ** 2 + self.grad_min_epsilon
 
         term5 = coeff5 * (t**5)
         term4 = coeff4 * (t**4)
@@ -369,7 +378,7 @@ class PolynomialNoiseSchedule(torch.nn.Module):
 
         a = self.l3_a(x)
         b = self.l3_b(x)
-        d = self.l3_d(x)
+        d = 1e-3 + self.softplus(self.l3_d(x))
 
         return a, b, d
 

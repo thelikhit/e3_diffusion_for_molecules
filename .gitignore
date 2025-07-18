@@ -33,4 +33,5 @@ qm9_conditional.sh
 figures/
 geom_drugs.sh
 jobs/
+notebooks/
 commands.txt
