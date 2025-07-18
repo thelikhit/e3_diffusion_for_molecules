@@ -42,7 +42,7 @@ def retrieve_dataloaders(cfg):
                 if len(current_dataset) > target_samples:
                     indices = torch.randperm(len(current_dataset))[:target_samples]
                     datasets[dataset_name] = Subset(current_dataset, indices)
-                    print(f"Reduced '{dataset_name}' dataset from ' {len(current_dataset)} ' to ' {len(datasets[dataset_name])} samples.")
+                    print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
                 else:
                     print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
             else:
@@ -51,7 +51,32 @@ def retrieve_dataloaders(cfg):
         reduce_dataset_size('train', target_train_samples)
         reduce_dataset_size('valid', target_val_samples)
         reduce_dataset_size('test', target_test_samples)
-        # --- MODIFICATION END ---
+
+        # Datapoint Repetition ---
+        print(f"\nChecking for datapoint repetition for datasets smaller than batch size ({batch_size})...")
+        for split, dataset in datasets.items():
+            current_len = len(dataset)
+            if current_len > 0 and current_len < batch_size:
+                # Calculate how many times the current dataset needs to be repeated
+                # to reach at least 'batch_size' elements (using ceiling division)
+                num_repeats = (batch_size + current_len - 1) // current_len
+
+                # Create a list of indices that repeats the original dataset's indices
+                repeated_indices = []
+                for _ in range(num_repeats):
+                    repeated_indices.extend(list(range(current_len)))
+
+                # Create a new Subset using the repeated indices, truncated to exactly 'batch_size'
+                # This ensures the DataLoader always gets 'batch_size' elements, even if repeated.
+                datasets[split] = Subset(dataset, repeated_indices[:batch_size])
+                print(f"[{split}] Dataset size ({current_len}) was less than batch size ({batch_size}). "
+                      f"Repeated datapoints to reach {len(datasets[split])} for full batch processing.")
+            elif current_len == 0 and batch_size > 0:
+                # Warn if the dataset is empty but a positive batch size is expected
+                print(f"Warning: [{split}] Dataset is empty, but batch_size is {batch_size}. "
+                      "Cannot populate datapoints by repetition.")
+# --- MODIFICATION END ---
+
 
         # Construct PyTorch dataloaders from datasets
         preprocess = PreprocessQM9(load_charges=cfg.include_charges)
