@@ -332,7 +332,10 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         self.l3_d = torch.nn.Linear(self.h_features, self.out_features)
 
         self.gamma_min = torch.nn.Parameter(torch.tensor([-13.3]))
+        self.gamma_min.requires_grad_(False)
         self.gamma_max = torch.nn.Parameter(torch.tensor([5.]))
+        self.gamma_max.requires_grad_(False)
+
         self.grad_min_epsilon = 0
 
         self.show_schedule()
@@ -750,9 +753,6 @@ class EnVariationalDiffusion(torch.nn.Module):
 
     def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always, num_atoms=None):
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
-
-        #if num_atoms is not None:
-        #    num_atoms = num_atoms.reshape(-1,1)
 
         # This part is about whether to include loss term 0 always.
         if t0_always:
