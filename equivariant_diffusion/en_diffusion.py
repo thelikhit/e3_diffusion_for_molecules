@@ -503,9 +503,10 @@ class PolynomialNoiseSchedule(torch.nn.Module):
         a, b, d = self.compute_coefficients(c)
         polynomial_t = self.evaluate_polynomial(a, b, d, t)
 
-        zeros, ones = torch.zeros_like(t), torch.ones_like(t)
-        polynomial_0 = self.evaluate_polynomial(a, b, d, zeros)
-        polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
+        with torch.no_grad():
+            zeros, ones = torch.zeros_like(t), torch.ones_like(t)
+            polynomial_0 = self.evaluate_polynomial(a, b, d, zeros)
+            polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
 
         gamma_t = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t / polynomial_1)
 
@@ -1038,8 +1039,11 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         assert len(loss.shape) == 1, f'{loss.shape} has more than only batch dim.'
 
-        return loss, {'t': t_int.squeeze(), 'loss_t': loss.squeeze(),
-                      'error': error.squeeze()}
+        loss_dict = {'t': t_int.squeeze(), 'loss_t': loss.squeeze(),
+                      'error': error.squeeze(), 'kl_prior': kl_prior, 
+                      'estimator_loss_terms': estimator_loss_terms, 'neg_log_constants': neg_log_constants, 'loss_term_0': loss_term_0}
+
+        return loss, loss_dict
 
     def forward(self, x, h, node_mask=None, edge_mask=None, context=None, num_atoms=None):
         """
@@ -1065,8 +1069,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Correct for normalization on x.
         assert neg_log_pxh.size() == delta_log_px.size()
         neg_log_pxh = neg_log_pxh - delta_log_px
-
-        return neg_log_pxh
+        return neg_log_pxh, loss_dict
 
     def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False, num_atoms=None, x=None, h=None):
         """Samples from zs ~ p(zs | zt). Only used during sampling."""
