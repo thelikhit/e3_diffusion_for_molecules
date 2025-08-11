@@ -20,7 +20,7 @@ def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, ed
 
         # Here x is a position tensor, and h is a dictionary with keys
         # 'categorical' and 'integer'.
-        nll = generative_model(x, h, node_mask, edge_mask, context, num_atoms=num_atoms)
+        nll, loss_dict = generative_model(x, h, node_mask, edge_mask, context, num_atoms=num_atoms)
 
         N = node_mask.squeeze(2).sum(1).long()
 
@@ -37,4 +37,4 @@ def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, ed
     else:
         raise ValueError(args.probabilistic_model)
 
-    return nll, reg_term, mean_abs_z
+    return nll, reg_term, mean_abs_z, loss_dict

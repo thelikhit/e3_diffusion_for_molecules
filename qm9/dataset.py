@@ -52,6 +52,11 @@ def retrieve_dataloaders(cfg):
         reduce_dataset_size('valid', target_val_samples)
         reduce_dataset_size('test', target_test_samples)
 
+        # print the molecules
+        # if target_train_samples <= 10:
+        #     for i in range(len(datasets['train'])):
+        #         print(datasets['train'][i])
+        
         # Datapoint Repetition ---
         print(f"\nChecking for datapoint repetition for datasets smaller than batch size ({batch_size})...")
         for split, dataset in datasets.items():

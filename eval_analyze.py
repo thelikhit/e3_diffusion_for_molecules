@@ -97,7 +97,7 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                     context = None
 
                 # transform batch through flow
-                nll, _, _ = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, node_mask,
+                nll, _, _, _ = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, node_mask,
                                                         edge_mask, context, num_atoms)
                 # standard nll from forward KL
 

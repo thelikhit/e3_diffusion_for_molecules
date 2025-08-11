@@ -51,7 +51,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         optim.zero_grad()
 
         # transform batch through flow
-        nll, reg_term, mean_abs_z = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, num_atoms)
         # standard nll from forward KL
         loss = nll + args.ode_regularization * reg_term
@@ -93,6 +93,16 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         if args.break_train_epoch:
             break
     wandb.log({"Train Epoch NLL": np.mean(nll_epoch)}, commit=False)
+    wandb.log({"Train Epoch Loss": loss.item()}, commit=False)
+    wandb.log({
+        "losses": {
+            "kl_prior": loss_dict['kl_prior'].mean().item(),
+            "error": loss_dict['error'].mean().item(),
+            "estimator_loss_terms": loss_dict['estimator_loss_terms'].mean().item(),
+            "neg_log_constants": loss_dict['neg_log_constants'].mean().item(),
+            "loss_t": loss_dict['loss_t'].mean().item()
+        }
+    }, commit=True)
 
 
 def check_mask_correct(variables, node_mask):
@@ -139,7 +149,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
                 context = None
 
             # transform batch through flow
-            nll, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
+            nll, _, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
                                                     node_mask, edge_mask, context, num_atoms=num_atoms)
             # standard nll from forward KL
 
