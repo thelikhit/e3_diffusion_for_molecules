@@ -46,7 +46,7 @@ class GCL(nn.Module):
 
     def node_model(self, x, edge_index, edge_attr, node_attr):
         row, col = edge_index
-        agg = unsorted_segment_sum(edge_attr, row, num_segments=x.size(0),
+        agg = unsorted_segment_sum(edge_attr, row.to(x.device), num_segments=x.size(0),
                                    normalization_factor=self.normalization_factor,
                                    aggregation_method=self.aggregation_method)
         if node_attr is not None:
@@ -262,7 +262,7 @@ def unsorted_segment_sum(data, segment_ids, num_segments, normalization_factor, 
     result_shape = (num_segments, data.size(1))
     result = data.new_full(result_shape, 0)  # Init empty result tensor.
     segment_ids = segment_ids.unsqueeze(-1).expand(-1, data.size(1))
-    result.scatter_add_(0, segment_ids, data)
+    result.scatter_add_(0, segment_ids.to(data.device), data)
     if aggregation_method == 'sum':
         result = result / normalization_factor
 

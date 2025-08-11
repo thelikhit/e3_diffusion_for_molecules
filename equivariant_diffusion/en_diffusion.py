@@ -334,6 +334,8 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         super(LearnedAdaptiveNoiseSchedule, self).__init__()
 
         self.graph_embeddings  = EGNN_dynamics_QM9(
+            n_layers=2,
+            hidden_nf=32,
             in_node_nf=6, 
             context_node_nf=1,
             n_dims=3)
@@ -404,8 +406,9 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         return polynomial
 
     def forward(self, t, h, x, node_mask, edge_mask):
+
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
-        embeddings = self.graph_embeddings._forward(t, xh, node_mask, edge_mask, context=None)
+        embeddings = self.graph_embeddings._forward(t=t, xh=xh, node_mask=node_mask, edge_mask=edge_mask, context=None)
         h_final = embeddings[:, :, 3:]
         pooled_h = self.global_mean_pooling(h_final)
 
@@ -914,16 +917,6 @@ class EnVariationalDiffusion(torch.nn.Module):
             gamma_s = self.inflate_batch_array(self.gamma(s, num_atoms), x)
             gamma_t = self.inflate_batch_array(self.gamma(t, num_atoms), x)
         elif isinstance(self.gamma, LearnedAdaptiveNoiseSchedule):
-            s = s.to('cpu')
-            t = t.to('cpu')
-            h = {key: value.to('cpu') for key, value in h.items()}
-            x = x.to('cpu')
-            node_mask = node_mask.to('cpu')
-            edge_mask = edge_mask.to('cpu')
-
-            breakpoint()
-
-
             gamma_s = self.inflate_batch_array(self.gamma(s, h, x, node_mask, edge_mask), x)
             gamma_t = self.inflate_batch_array(self.gamma(t, h, x, node_mask, edge_mask), x)
         else:
