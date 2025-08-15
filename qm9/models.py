@@ -38,6 +38,7 @@ def get_model(args, device, dataset_info, dataloader_train):
             timesteps=args.diffusion_steps,
             noise_schedule=args.diffusion_noise_schedule,
             noise_precision=args.diffusion_noise_precision,
+            noise_conditioning=args.noise_conditioning,
             loss_type=args.diffusion_loss_type,
             norm_values=args.normalize_factors,
             include_charges=args.include_charges
@@ -105,8 +106,8 @@ class DistributionProperty:
         self.properties = properties
         for prop in properties:
             self.distributions[prop] = {}
-            self._create_prob_dist(dataloader.dataset.data['num_atoms'],
-                                   dataloader.dataset.data[prop],
+            self._create_prob_dist(dataloader.dataset.dataset.data['num_atoms'],
+                                   dataloader.dataset.dataset.data[prop],
                                    self.distributions[prop])
 
         self.normalizer = normalizer

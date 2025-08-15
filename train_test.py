@@ -47,12 +47,22 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             assert_correctly_masked(context, node_mask)
         else:
             context = None
+        
+        # in future implementation, if both are required for adaptive noise schedules, then noise_context can be a dictonary.
+        breakpoint()
+        if args.noise_conditioning == 'molecule_size':
+            noise_context = num_atoms
+        elif args.noise_conditioning == 'conditional_generation':
+            noise_context = context
+        else:
+            noise_context = None
+
 
         optim.zero_grad()
 
         # transform batch through flow
         nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
-                                                                x, h, node_mask, edge_mask, context, num_atoms)
+                                                                x, h, node_mask, edge_mask, context, noise_context)
         # standard nll from forward KL
         loss = nll + args.ode_regularization * reg_term
         loss.backward()
@@ -148,9 +158,18 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             else:
                 context = None
 
+            # in future implementation, if both are required for adaptive noise schedules, then noise_context can be a dictonary.
+            breakpoint()
+            if args.noise_conditioning == 'molecule_size':
+                noise_context = num_atoms
+            elif args.noise_conditioning == 'conditional_generation':
+                noise_context = context
+            else:
+                noise_context = None
+
             # transform batch through flow
             nll, _, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
-                                                    node_mask, edge_mask, context, num_atoms=num_atoms)
+                                                    node_mask, edge_mask, context, noise_context=noise_context)
             # standard nll from forward KL
 
             nll_epoch += nll.item() * batch_size

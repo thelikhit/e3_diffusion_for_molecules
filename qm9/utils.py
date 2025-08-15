@@ -13,7 +13,7 @@ def compute_mean_mad(dataloaders, properties, dataset_name):
 def compute_mean_mad_from_dataloader(dataloader, properties):
     property_norms = {}
     for property_key in properties:
-        values = dataloader.dataset.data[property_key]
+        values = dataloader.dataset.dataset.data[property_key]
         mean = torch.mean(values)
         ma = torch.abs(values - mean)
         mad = torch.mean(ma)
