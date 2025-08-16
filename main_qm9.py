@@ -193,6 +193,9 @@ else:
 
 args.context_node_nf = context_node_nf
 
+if 'scaled' in args.diffusion_noise_schedule:
+    args.noise_conditioning == 'molecule_size'
+
 if args.conditioning == [] and args.noise_conditioning == 'conditional_generation':
     assert args.noise_conditioning == 'molecule_size', 'Noise schedule can only be conditioned on molecule properties when conditioning is enabled. '
 

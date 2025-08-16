@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from equivariant_diffusion.utils import assert_mean_zero_with_mask, remove_mean_with_mask,\
     assert_correctly_masked
 from qm9.analyze import check_stability
+import qm9.utils as qm9utils
 
 
 def rotate_chain(z):
@@ -68,6 +69,11 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     else:
         context = None
 
+    if args.noise_conditioning == 'conditional_generation':
+        noise_context = qm9utils.prepare_noise_context(context).to(device)
+    else:
+        noise_context = torch.tensor(n_nodes).to(device)
+
     node_mask = torch.ones(n_samples, n_nodes, 1).to(device)
 
     edge_mask = (1 - torch.eye(n_nodes)).unsqueeze(0)
@@ -76,7 +82,7 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     if args.probabilistic_model == 'diffusion':
         one_hot, charges, x = None, None, None
         for i in range(n_tries):
-            chain = flow.sample_chain(n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=100)
+            chain = flow.sample_chain(n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=100, noise_context=noise_context)
             chain = reverse_tensor(chain)
 
             # Repeat last frame to see final sample better.
@@ -109,7 +115,7 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
 
 def sample(args, device, generative_model, dataset_info,
            prop_dist=None, nodesxsample=torch.tensor([10]), context=None,
-           fix_noise=False, num_atoms=None):
+           fix_noise=False):
     max_n_nodes = dataset_info['max_n_nodes']  # this is the maximum node_size in QM9
     
     assert int(torch.max(nodesxsample)) <= max_n_nodes
@@ -135,8 +141,13 @@ def sample(args, device, generative_model, dataset_info,
     else:
         context = None
 
+    if args.noise_conditioning == 'conditional_generation':
+        noise_context = qm9utils.prepare_noise_context(context).to(device)
+    else:
+        noise_context = torch.tensor(nodesxsample).to(device)
+
     if args.probabilistic_model == 'diffusion':
-        x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context, fix_noise=fix_noise)
+        x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)
 
         assert_correctly_masked(x, node_mask)
         assert_mean_zero_with_mask(x, node_mask)

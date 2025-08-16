@@ -235,8 +235,6 @@ class ScaledNoiseSchedule(torch.nn.Module):
 
     def forward(self, t, n_nodes):
 
-        breakpoint()
-
         t_int = torch.round(t * self.timesteps).long()
         n_nodes = n_nodes.reshape_as(self.gamma[t_int])
 
@@ -293,9 +291,6 @@ class PredefinedNoiseSchedule(torch.nn.Module):
             requires_grad=False)
 
     def forward(self, t):
-
-        breakpoint()
-
         t_int = torch.round(t * self.timesteps).long()
         return self.gamma[t_int]
 
@@ -331,8 +326,6 @@ class GammaNetwork(torch.nn.Module):
 
     def forward(self, t):
 
-        breakpoint()
-
         zeros, ones = torch.zeros_like(t), torch.ones_like(t)
         # Not super efficient.
         gamma_tilde_0 = self.gamma_tilde(zeros)
@@ -362,7 +355,7 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         parameters = {k: v for k, v in locals().items() if k != 'self'}
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
-
+            
         self.in_features = 1
         self.h_features = 1024
         self.out_features = 1
@@ -431,8 +424,6 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
 
     def forward(self, t, c):
 
-        breakpoint()
-
         a, b, d = self.compute_coefficients(c)
         polynomial_t = self.evaluate_polynomial(a, b, d, t)
 
@@ -476,8 +467,9 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         if noise_schedule == 'learned':
             self.gamma = GammaNetwork()
-        elif noise_schedule == 'scaled':
-            self.gamma = ScaledNoiseSchedule(timesteps=timesteps, precision=noise_precision)
+        elif 'scaled' in noise_schedule:
+            self.gamma = ScaledNoiseSchedule(noise_schedule=noise_schedule, 
+                                             timesteps=timesteps, precision=noise_precision)
         elif noise_schedule == 'learned_adaptive':
             self.gamma = LearnedAdaptiveNoiseSchedule(noise_conditioning=noise_conditioning)
         else:
@@ -702,8 +694,6 @@ class EnVariationalDiffusion(torch.nn.Module):
         """Samples x ~ p(x|z0)."""
         
         zeros = torch.zeros(size=(z0.size(0), 1), device=z0.device)
-        num_atoms = torch.full(zeros.shape, num_atoms, dtype=zeros.dtype, device=z0.device)
-
 
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_0 = self.gamma(zeros, noise_context)
@@ -977,8 +967,6 @@ class EnVariationalDiffusion(torch.nn.Module):
 
     def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False, noise_context=None):
         """Samples from zs ~ p(zs | zt). Only used during sampling."""
-
-        noise_context = torch.full(s.shape, noise_context, dtype=s.dtype, device=s.device)
         
         if isinstance(self.gamma, ScaledNoiseSchedule):
             gamma_s = self.gamma(s, noise_context)
@@ -1032,7 +1020,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return z
 
     @torch.no_grad()
-    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False):
+    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False, noise_context=None):
         """
         Draw samples from the generative model.
         """
@@ -1052,10 +1040,10 @@ class EnVariationalDiffusion(torch.nn.Module):
             s_array = s_array / self.T
             t_array = t_array / self.T
 
-            z = self.sample_p_zs_given_zt(s_array, t_array, z, node_mask, edge_mask, context, fix_noise=fix_noise, noise_context=n_nodes)
+            z = self.sample_p_zs_given_zt(s_array, t_array, z, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)
 
         # Finally sample p(x, h | z_0).
-        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, fix_noise=fix_noise, noise_context=n_nodes)
+        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 
@@ -1068,7 +1056,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return x, h
 
     @torch.no_grad()
-    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None):
+    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None, noise_context=None):
         """
         Draw samples from the generative model, keep the intermediate states for visualization purposes.
         """
@@ -1090,7 +1078,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             t_array = t_array / self.T
 
             z = self.sample_p_zs_given_zt(
-                s_array, t_array, z, node_mask, edge_mask, context, num_atoms=n_nodes)
+                s_array, t_array, z, node_mask, edge_mask, context, noise_context=noise_context)
 
             diffusion_utils.assert_mean_zero_with_mask(z[:, :, :self.n_dims], node_mask)
 
@@ -1099,7 +1087,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             chain[write_index] = self.unnormalize_z(z, node_mask)
 
         # Finally sample p(x, h | z_0).
-        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, num_atoms=n_nodes)
+        x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, noise_context=noise_context)
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 
@@ -1110,17 +1098,12 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return chain_flat
 
-    def log_info(self, num_atoms=None):
+    def log_info(self):
         """
         Some info logging of the model.
         """
-        
-        if isinstance(self.gamma, (ScaledNoiseSchedule)):
-            gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device), num_atoms)
-            gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device), num_atoms)
-        else:
-            gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device))
-            gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device))
+        gamma_0 = self.gamma(torch.zeros(1, device=self.buffer.device))
+        gamma_1 = self.gamma(torch.ones(1, device=self.buffer.device))
 
         log_SNR_max = -gamma_0
         log_SNR_min = -gamma_1

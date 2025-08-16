@@ -49,13 +49,10 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             context = None
         
         # in future implementation, if both are required for adaptive noise schedules, then noise_context can be a dictonary.
-        breakpoint()
-        if args.noise_conditioning == 'molecule_size':
-            noise_context = num_atoms
-        elif args.noise_conditioning == 'conditional_generation':
-            noise_context = context
+        if args.noise_conditioning == 'conditional_generation':
+            noise_context = qm9utils.prepare_noise_context(context)
         else:
-            noise_context = None
+            noise_context = num_atoms
 
 
         optim.zero_grad()
@@ -89,9 +86,9 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             if len(args.conditioning) > 0:
                 save_and_sample_conditional(args, device, model_ema, prop_dist, dataset_info, epoch=epoch)
             save_and_sample_chain(model_ema, args, device, dataset_info, prop_dist, epoch=epoch,
-                                  batch_id=str(i), num_atoms=num_atoms)
+                                  batch_id=str(i))
             sample_different_sizes_and_save(model_ema, nodes_dist, args, device, dataset_info,
-                                            prop_dist, epoch=epoch, num_atoms=num_atoms)
+                                            prop_dist, epoch=epoch)
             print(f'Sampling took {time.time() - start:.2f} seconds')
 
             vis.visualize(f"outputs/{args.exp_name}/epoch_{epoch}_{i}", dataset_info=dataset_info, wandb=wandb)
@@ -159,13 +156,10 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
                 context = None
 
             # in future implementation, if both are required for adaptive noise schedules, then noise_context can be a dictonary.
-            breakpoint()
-            if args.noise_conditioning == 'molecule_size':
-                noise_context = num_atoms
-            elif args.noise_conditioning == 'conditional_generation':
-                noise_context = context
+            if args.noise_conditioning == 'conditional_generation':
+                noise_context = qm9utils.prepare_noise_context(context)
             else:
-                noise_context = None
+                noise_context = num_atoms
 
             # transform batch through flow
             nll, _, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
@@ -182,7 +176,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
 
 def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
-                          epoch=0, id_from=0, batch_id='', num_atoms=None):
+                          epoch=0, id_from=0, batch_id=''):
     one_hot, charges, x = sample_chain(args=args, device=device, flow=model,
                                        n_tries=1, dataset_info=dataset_info, prop_dist=prop_dist)
 
@@ -193,13 +187,13 @@ def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
 
 
 def sample_different_sizes_and_save(model, nodes_dist, args, device, dataset_info, prop_dist,
-                                    n_samples=5, epoch=0, batch_size=100, batch_id='', num_atoms=None):
+                                    n_samples=5, epoch=0, batch_size=100, batch_id=''):
     batch_size = min(batch_size, n_samples)
     for counter in range(int(n_samples/batch_size)):
         nodesxsample = nodes_dist.sample(batch_size)
         one_hot, charges, x, node_mask = sample(args, device, model, prop_dist=prop_dist,
                                                 nodesxsample=nodesxsample,
-                                                dataset_info=dataset_info, num_atoms=num_atoms)
+                                                dataset_info=dataset_info)
         print(f"Generated molecule: Positions {x[:-1, :, :]}")
         vis.save_xyz_file(f'outputs/{args.exp_name}/epoch_{epoch}_{batch_id}/', one_hot, charges, x, dataset_info,
                           batch_size * counter, name='molecule')
