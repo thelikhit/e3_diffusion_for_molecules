@@ -29,12 +29,19 @@ def get_model(args, device, dataset_info, dataloader_train):
     if args.diffusion_noise_context =='mol_properties':
         assert len(args.conditioning) > 0, 'Noise schedule can only be conditioned on molecule properties when some conditioning properties are selected. '
 
+    if args.diffusion_noise_context == 'num_atoms':
+        noise_schedule_input_dim = 1
+    elif args.diffusion_noise_context == 'mol_prop':
+        noise_schedule_input_dim = len(args.conditioning)
+    else:
+        noise_schedule_input_dim = 0
+
     noise_schedule = NoiseScheduleConfig(
         scheduler_type=args.diffusion_noise_schedule,
         noise_precision=args.diffusion_noise_precision,
         dataset_info=dataset_info,
         diffusion_noise_context=args.diffusion_noise_context,
-        input_features=1
+        input_features=noise_schedule_input_dim
     )
 
     net_dynamics = EGNN_dynamics_QM9(
