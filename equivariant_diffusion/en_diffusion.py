@@ -10,6 +10,7 @@ from egnn.egnn_new import EGNN, GNN
 from egnn.models import EGNN_dynamics_QM9
 from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
+from noise_schedule.noise_schedule import NoiseScheduleConfig
 from configs.datasets_config import get_dataset_info
 
 
@@ -191,7 +192,7 @@ class SinusoidalPosEmb(torch.nn.Module):
 
 class ScaledNoiseSchedule(torch.nn.Module):
 
-    def __init__(self, noise_schedule, timesteps, precision):
+    def __init__(self, dataset_info, noise_schedule, timesteps, precision):
         super(ScaledNoiseSchedule, self).__init__()
 
         # print noise schedule class information
@@ -200,7 +201,8 @@ class ScaledNoiseSchedule(torch.nn.Module):
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
 
-        dataset_info = get_dataset_info('qm9', False)
+        # TODO: get dataset info, either geom or qm9
+        dataset_info = get_dataset_info('geom', False)
         n_nodes_data = dataset_info['n_nodes']
 
         self.min_n_nodes = min(n_nodes_data.keys())
@@ -347,7 +349,7 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
     Architecture for a(c), b(c), and d(c) in MuLAN's noise schedule.
     """
     
-    def __init__(self, noise_conditioning):
+    def __init__(self, dataset_info, noise_context, input_dim):
         super(LearnedAdaptiveNoiseSchedule, self).__init__()
 
         # print noise schedule class information
@@ -356,7 +358,7 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
             
-        self.in_features = 1
+        self.in_features = input_dim
         self.h_features = 1024
         self.out_features = 1
 
@@ -447,9 +449,8 @@ class EnVariationalDiffusion(torch.nn.Module):
     """
     def __init__(
             self,
-            dynamics: models.EGNN_dynamics_QM9, in_node_nf: int, n_dims: int,
-            timesteps: int = 1000, parametrization='eps', noise_schedule='learned', noise_conditioning=None,
-            noise_precision=1e-4, loss_type='vlb', norm_values=(1., 1., 1.),
+            dynamics: models.EGNN_dynamics_QM9, in_node_nf: int, n_dims: int, noise_schedule: NoiseScheduleConfig,
+            timesteps: int = 1000, parametrization='eps', loss_type='vlb', norm_values=(1., 1., 1.),
             norm_biases=(None, 0., 0.), include_charges=True):
         super().__init__()
 
@@ -462,19 +463,21 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Only supported parametrization.
         assert parametrization == 'eps'
 
-        # noise conditioning for learned adaptive schedule
-        self.noise_conditioning = noise_conditioning
-
-        if noise_schedule == 'learned':
+        if noise_schedule.scheduler_type == 'learned':
             self.gamma = GammaNetwork()
-        elif 'scaled' in noise_schedule:
-            self.gamma = ScaledNoiseSchedule(noise_schedule=noise_schedule, 
-                                             timesteps=timesteps, precision=noise_precision)
-        elif noise_schedule == 'learned_adaptive':
-            self.gamma = LearnedAdaptiveNoiseSchedule(noise_conditioning=noise_conditioning)
+        elif 'scaled' in noise_schedule.scheduler_type:
+            self.gamma = ScaledNoiseSchedule(dataset_info=noise_schedule.dataset_info, 
+                                             noise_schedule=noise_schedule.scheduler_type, 
+                                             timesteps=timesteps, 
+                                             precision=noise_schedule.noise_precision)
+        elif noise_schedule.scheduler_type == 'learned_adaptive':
+            self.gamma = LearnedAdaptiveNoiseSchedule(dataset_info=noise_schedule.dataset_info, 
+                                                      noise_context=noise_schedule.diffusion_noise_context, 
+                                                      input_dim=noise_schedule.input_features)
         else:
-            self.gamma = PredefinedNoiseSchedule(noise_schedule, timesteps=timesteps,
-                                                 precision=noise_precision)
+            self.gamma = PredefinedNoiseSchedule(noise_schedule=noise_schedule.scheduler_type, 
+                                                 timesteps=timesteps,
+                                                 precision=noise_schedule.noise_precision)
 
         # The network that will predict the denoising.
         self.dynamics = dynamics

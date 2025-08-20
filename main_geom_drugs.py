@@ -113,9 +113,11 @@ parser.add_argument('--filter_molecule_size', type=int, default=None,
                     help="Only use molecules below this size.")
 parser.add_argument('--sequential', action='store_true',
                     help='Organize data by size to reduce average memory usage.')
+parser.add_argument('--diffusion_noise_context', type=str, default='num_atoms',
+                    help='num_atoms, mol_prop')
 args = parser.parse_args()
 
-data_file = './data/geom/geom_drugs_30.npy'
+data_file = './data/geom/geom_drugs_10.npy'
 
 if args.remove_h:
     raise NotImplementedError()
@@ -187,6 +189,8 @@ else:
 
 args.context_node_nf = context_node_nf
 
+# no mol_properties context for drugs
+assert args.diffusion_noise_context in ('num_atoms', None)
 
 # Create EGNN flow
 model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloader_train=dataloaders['train'])
@@ -239,8 +243,8 @@ def main():
         print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
         if epoch % args.test_epochs == 0:
-            if isinstance(model, en_diffusion.EnVariationalDiffusion):
-                wandb.log(model.log_info(), commit=True)
+            # if isinstance(model, en_diffusion.EnVariationalDiffusion):
+                # wandb.log(model.log_info(), commit=True)
 
             if not args.break_train_epoch:
                 train_test.analyze_and_save(epoch, model_ema, nodes_dist, args, device,

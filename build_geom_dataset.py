@@ -72,7 +72,9 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     base_path = path.parent.absolute()
 
     # base_path = os.path.dirname(conformation_file)
-    all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
+    # all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
+    all_data = np.load(conformation_file, mmap_mode='r')  # 2d array: num_atoms x 5
+    all_data = all_data[:10000]
 
     mol_id = all_data[:, 0].astype(int)
     conformers = all_data[:, 1:]
@@ -225,6 +227,7 @@ class GeomDrugsTransform(object):
         else:
             new_data['charges'] = torch.zeros(0, device=self.device)
         new_data['atom_mask'] = torch.ones(n, device=self.device)
+        new_data['num_atoms'] = torch.sum(new_data['atom_mask'], dim=0)
 
         if self.sequential:
             edge_mask = torch.ones((n, n), device=self.device)

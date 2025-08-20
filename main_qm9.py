@@ -115,11 +115,8 @@ parser.add_argument('--normalization_factor', type=float, default=1,
                     help="Normalize the sum aggregation of EGNN")
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
-
-# Noise Schedule args -->
-parser.add_argument('--noise_conditioning', type=str, default=None,
-                    help='molecule_size, conditional_generation')
-# <-- Noise Schedule args
+parser.add_argument('--diffusion_noise_context', type=str, default=None,
+                    help='num_atoms, mol_properties')
 
 args = parser.parse_args()
 
@@ -192,12 +189,6 @@ else:
     property_norms = None
 
 args.context_node_nf = context_node_nf
-
-if 'scaled' in args.diffusion_noise_schedule:
-    args.noise_conditioning == 'molecule_size'
-
-if args.conditioning == [] and args.noise_conditioning == 'conditional_generation':
-    assert args.noise_conditioning == 'molecule_size', 'Noise schedule can only be conditioned on molecule properties when conditioning is enabled. '
 
 
 # Create EGNN flow
