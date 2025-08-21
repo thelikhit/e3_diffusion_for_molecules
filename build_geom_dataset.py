@@ -73,8 +73,8 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
 
     # base_path = os.path.dirname(conformation_file)
     # all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
-    all_data = np.load(conformation_file, mmap_mode='r')  # 2d array: num_atoms x 5
-    all_data = all_data[:10000]
+    all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
+    all_data = all_data[:1000]
 
     mol_id = all_data[:, 0].astype(int)
     conformers = all_data[:, 1:]

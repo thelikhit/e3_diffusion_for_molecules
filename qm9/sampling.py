@@ -69,7 +69,9 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     else:
         context = None
 
-    if args.noise_conditioning == 'conditional_generation':
+    if args.diffusion_noise_context == None:
+        noise_context = None
+    elif args.diffusion_noise_context == 'mol_prop':
         noise_context = qm9utils.prepare_noise_context(context).to(device)
     else:
         noise_context = torch.tensor(n_nodes).to(device)
@@ -141,10 +143,13 @@ def sample(args, device, generative_model, dataset_info,
     else:
         context = None
 
-    if args.noise_conditioning == 'conditional_generation':
+    if args.diffusion_noise_context == None:
+        noise_context = None
+    elif args.diffusion_noise_context == 'mol_prop':
         noise_context = qm9utils.prepare_noise_context(context).to(device)
     else:
-        noise_context = torch.tensor(nodesxsample).to(device)
+        # noise_context = nodesxsample.clone().detach()
+        noise_context = torch.tensor(nodesxsample, dtype=torch.float32).to(device)
 
     if args.probabilistic_model == 'diffusion':
         x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)

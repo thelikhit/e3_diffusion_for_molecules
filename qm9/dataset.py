@@ -95,7 +95,7 @@ def retrieve_dataloaders(cfg):
     elif 'geom' in cfg.dataset:
         import build_geom_dataset
         from configs.datasets_config import get_dataset_info
-        data_file = './data/geom/geom_drugs_30.npy'
+        data_file = './data/geom/geom_drugs_10.npy'
         dataset_info = get_dataset_info(cfg.dataset, cfg.remove_h)
 
         # Retrieve QM9 dataloaders
@@ -124,6 +124,11 @@ def retrieve_dataloaders(cfg):
         raise ValueError(f'Unknown dataset {cfg.dataset}')
 
     return dataloaders, charge_scale
+
+
+def combine_and_retrieve_dataloaders(cfg_qm9, cfg_drugs):
+    raise NotImplementedError
+    
 
 
 def filter_atoms(datasets, n_nodes):

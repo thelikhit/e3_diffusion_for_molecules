@@ -358,7 +358,7 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
             
-        self.in_features = input_dim
+        self.in_features = 1
         self.h_features = 1024
         self.out_features = 1
 
@@ -493,7 +493,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        if noise_schedule not in ['learned', 'learned_adaptive']:
+        if noise_schedule.scheduler_type not in ['learned', 'learned_adaptive']:
             self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):

@@ -48,9 +48,9 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         else:
             context = None
         
-        if args.noise_conditioning == None:
+        if args.diffusion_noise_context == None:
             noise_context = None
-        elif args.noise_conditioning == 'mol_prop':
+        elif args.diffusion_noise_context == 'mol_prop':
             noise_context = qm9utils.prepare_noise_context(context)
         else:
             noise_context = num_atoms
@@ -156,8 +156,9 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             else:
                 context = None
 
-            # in future implementation, if both are required for adaptive noise schedules, then noise_context can be a dictonary.
-            if args.noise_conditioning == 'conditional_generation':
+            if args.diffusion_noise_context == None:
+                noise_context = None
+            elif args.diffusion_noise_context == 'mol_prop':
                 noise_context = qm9utils.prepare_noise_context(context)
             else:
                 noise_context = num_atoms

@@ -90,12 +90,9 @@ def prepare_context(conditioning, minibatch, property_norms):
 
 def prepare_noise_context(input):
     # mean pooling context -> noise context
-    try:
-        if input.dim() == 2 and input.size(1) == 1:
-            return input
-        output = torch.mean(input, dim=[1, 2], keepdim=True)
-        output = output.unsqueeze(1)
-    except:
-        breakpoint()
+    if input.dim() == 2 and input.size(1) == 1:
+        return input
+    output = torch.mean(input, dim=[1, 2], keepdim=True)
+    output = output.squeeze()
     return output
 
