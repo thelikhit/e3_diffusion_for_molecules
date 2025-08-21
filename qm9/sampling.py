@@ -74,7 +74,7 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     elif args.diffusion_noise_context == 'mol_prop':
         noise_context = qm9utils.prepare_noise_context(context).to(device)
     else:
-        noise_context = torch.tensor(n_nodes).to(device)
+        noise_context = torch.tensor([[n_nodes]], dtype=torch.float32).to(device)
 
     node_mask = torch.ones(n_samples, n_nodes, 1).to(device)
 
