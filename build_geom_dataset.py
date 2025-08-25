@@ -1,6 +1,7 @@
 import msgpack
 import os
 import numpy as np
+from collections import Counter
 import torch
 from torch.utils.data import BatchSampler, DataLoader, Dataset, SequentialSampler
 import argparse
@@ -85,6 +86,15 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     split_indices = np.nonzero(mol_id[:-1] - mol_id[1:])[0] + 1
     data_list = np.split(conformers, split_indices)
 
+    # Calculate the number of atoms for each molecule
+    molecule_sizes = [mol.shape[0] for mol in data_list]
+
+    # Use Counter to get the frequency distribution and convert to a dictionary
+    size_distribution = dict(sorted(Counter(molecule_sizes).items()))
+
+    # Print the distribution
+    print("Molecule size distribution:", size_distribution)
+
     # Filter based on molecule size.
     if filter_size is not None:
         # Keep only molecules <= filter_size
@@ -106,6 +116,7 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     data_list = [data_list[i] for i in perm]
 
     num_mol = len(data_list)
+    print('Number of molecules in dataset =', num_mol)
     val_index = int(num_mol * val_proportion)
     test_index = val_index + int(num_mol * test_proportion)
     val_data, test_data, train_data = np.split(data_list, [val_index, test_index])
