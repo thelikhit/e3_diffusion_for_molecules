@@ -35,3 +35,6 @@ geom_drugs.sh
 jobs/
 notebooks/
 commands.txt
+outputs/edm_geom_drugs/*
+data/geom/*
+*.sh
