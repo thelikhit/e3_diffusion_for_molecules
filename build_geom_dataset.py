@@ -66,15 +66,18 @@ def extract_conformers(args):
 
 
 def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
-                    filter_size=None):
+                    filter_size=None, n=10000):
     from pathlib import Path
     path = Path(conformation_file)
     base_path = path.parent.absolute()
 
     # base_path = os.path.dirname(conformation_file)
-    # all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
     all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
-    all_data = all_data[:1000]
+
+    # choose n molecules
+    mol_id_full = all_data[:, 0].astype(int)
+    last_atom_index = np.where(mol_id_full == n-1)[0][-1] + 1
+    all_data = all_data[:last_atom_index, :]
 
     mol_id = all_data[:, 0].astype(int)
     conformers = all_data[:, 1:]
