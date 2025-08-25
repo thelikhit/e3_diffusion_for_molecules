@@ -31,9 +31,9 @@ def retrieve_dataloaders(cfg):
             
 # --- MODIFICATION START ---
         # Define the target number of samples for the datasets
-        target_train_samples = 400
-        target_val_samples = 50
-        target_test_samples = 50
+        target_train_samples = 8000
+        target_val_samples = 1000
+        target_test_samples = 1000
 
         # Function to reduce dataset size
         def reduce_dataset_size(dataset_name, target_samples):
