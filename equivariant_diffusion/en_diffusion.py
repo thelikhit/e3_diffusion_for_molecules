@@ -202,7 +202,6 @@ class ScaledNoiseSchedule(torch.nn.Module):
             print(f"  - {param}: {value}")
 
         # TODO: get dataset info, either geom or qm9
-        dataset_info = get_dataset_info('geom', False)
         n_nodes_data = dataset_info['n_nodes']
 
         self.min_n_nodes = min(n_nodes_data.keys())

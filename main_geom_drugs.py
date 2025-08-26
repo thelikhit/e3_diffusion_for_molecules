@@ -113,7 +113,7 @@ parser.add_argument('--filter_molecule_size', type=int, default=None,
                     help="Only use molecules below this size.")
 parser.add_argument('--sequential', action='store_true',
                     help='Organize data by size to reduce average memory usage.')
-parser.add_argument('--diffusion_noise_context', type=str, default='num_atoms',
+parser.add_argument('--diffusion_noise_context', type=str, default=None,
                     help='num_atoms, mol_prop')
 args = parser.parse_args()
 
@@ -246,9 +246,9 @@ def main():
             # if isinstance(model, en_diffusion.EnVariationalDiffusion):
                 # wandb.log(model.log_info(), commit=True)
 
-            if not args.break_train_epoch:
-                train_test.analyze_and_save(epoch, model_ema, nodes_dist, args, device,
-                                            dataset_info, prop_dist, n_samples=args.n_stability_samples)
+            # if not args.break_train_epoch:
+            #     train_test.analyze_and_save(epoch, model_ema, nodes_dist, args, device,
+            #                                 dataset_info, prop_dist, n_samples=args.n_stability_samples)
             nll_val = train_test.test(args, dataloaders['val'], epoch, model_ema_dp, device, dtype,
                                       property_norms, nodes_dist, partition='Val')
             nll_test = train_test.test(args, dataloaders['test'], epoch, model_ema_dp, device, dtype,
