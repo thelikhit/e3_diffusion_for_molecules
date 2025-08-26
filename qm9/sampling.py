@@ -149,7 +149,7 @@ def sample(args, device, generative_model, dataset_info,
         noise_context = prop_dist.sample_batch(nodesxsample).to(device)
     else:
         # noise_context = nodesxsample.clone().detach()
-        noise_context = torch.tensor(nodesxsample, dtype=torch.float32).to(device)
+        noise_context = torch.tensor(nodesxsample, dtype=torch.float32).unsqueeze(1).to(device)
 
     if args.probabilistic_model == 'diffusion':
         x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)

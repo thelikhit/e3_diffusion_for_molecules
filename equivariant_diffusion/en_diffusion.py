@@ -357,12 +357,12 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
             
-        self.in_features = 1
+        self.in_features = input_dim
         self.h_features = 1024
         self.out_features = 1
 
-        self.l1 = torch.nn.Linear(self.in_features, self.in_features)
-        self.l2 = torch.nn.Linear(self.in_features, self.h_features)
+        self.l1 = torch.nn.Linear(self.in_features, 1)
+        self.l2 = torch.nn.Linear(1, self.h_features)
         
         self.l3_a = torch.nn.Linear(self.h_features, self.out_features)
         self.l3_b = torch.nn.Linear(self.h_features, self.out_features)
