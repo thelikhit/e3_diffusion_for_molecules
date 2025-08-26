@@ -409,11 +409,6 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
 
     def compute_coefficients(self, c):
 
-        if isinstance(c, int):
-            c = torch.tensor([[float(c)]], dtype=torch.float32)
-
-        c = c.view(c.shape[0], 1)
-
         x = F.silu(self.l1(c))
         x = F.silu(self.l2(x))
 

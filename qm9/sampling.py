@@ -72,7 +72,7 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     if args.diffusion_noise_context == None:
         noise_context = None
     elif args.diffusion_noise_context == 'mol_prop':
-        noise_context = qm9utils.prepare_noise_context(context).to(device)
+        noise_context = prop_dist.sample(n_nodes).unsqueeze(0).to(device) # must be bs x dim
     else:
         noise_context = torch.tensor([[n_nodes]], dtype=torch.float32).to(device)
 
@@ -146,7 +146,7 @@ def sample(args, device, generative_model, dataset_info,
     if args.diffusion_noise_context == None:
         noise_context = None
     elif args.diffusion_noise_context == 'mol_prop':
-        noise_context = qm9utils.prepare_noise_context(context).to(device)
+        noise_context = prop_dist.sample_batch(nodesxsample).to(device)
     else:
         # noise_context = nodesxsample.clone().detach()
         noise_context = torch.tensor(nodesxsample, dtype=torch.float32).to(device)

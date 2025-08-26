@@ -51,7 +51,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         if args.diffusion_noise_context == None:
             noise_context = None
         elif args.diffusion_noise_context == 'mol_prop':
-            noise_context = qm9utils.prepare_noise_context(context)
+            noise_context = qm9utils.prepare_noise_context(args.conditioning, data, property_norms).to(device, dtype)
         else:
             noise_context = num_atoms
 
@@ -159,7 +159,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             if args.diffusion_noise_context == None:
                 noise_context = None
             elif args.diffusion_noise_context == 'mol_prop':
-                noise_context = qm9utils.prepare_noise_context(context)
+                noise_context = qm9utils.prepare_noise_context(args.conditioning, data, property_norms).to(device, dtype)
             else:
                 noise_context = num_atoms
 

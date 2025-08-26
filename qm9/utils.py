@@ -88,11 +88,22 @@ def prepare_context(conditioning, minibatch, property_norms):
     assert context.size(2) == context_node_nf
     return context
 
-def prepare_noise_context(input):
-    # mean pooling context -> noise context
-    if input.dim() == 2 and input.size(1) == 1:
-        return input
-    output = torch.mean(input, dim=[1, 2], keepdim=True)
-    output = output.squeeze()
-    return output
+def prepare_noise_context(conditioning, minibatch, property_norms):
 
+    batch_size, _, _ = minibatch['positions'].size()
+    noise_context_list = []
+
+    assert len(conditioning) > 0, f"len(conditioning) == 0"
+
+    for key in conditioning:
+        properties = minibatch[key]
+        # normalize properties
+        properties = (properties - property_norms[key]['mean']) / property_norms[key]['mad']
+        noise_context_list.append(properties)
+
+    noise_context = torch.stack(noise_context_list, dim=1)
+
+
+    assert noise_context.shape == torch.Size([batch_size, len(conditioning)]), f"noise context shape missmatch"
+
+    return noise_context
