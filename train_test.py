@@ -53,7 +53,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         elif args.diffusion_noise_context == 'mol_prop':
             noise_context = qm9utils.prepare_noise_context(args.conditioning, data, property_norms).to(device, dtype)
         else:
-            noise_context = num_atoms
+            noise_context = num_atoms.unsqueeze(1)
 
 
         optim.zero_grad()
@@ -161,7 +161,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             elif args.diffusion_noise_context == 'mol_prop':
                 noise_context = qm9utils.prepare_noise_context(args.conditioning, data, property_norms).to(device, dtype)
             else:
-                noise_context = num_atoms
+                noise_context = num_atoms.unsqueeze(1)
 
             # transform batch through flow
             nll, _, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
