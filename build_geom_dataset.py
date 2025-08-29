@@ -102,10 +102,11 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
             mol_by_size[size] = []
         mol_by_size[size].append(mol)
 
-    # Create the new dataset with 75 molecules per size, or all if fewer than 75
+    # Create the new dataset with 100 molecules per size, or all if fewer than 100
     new_data_list = []
+    print('With stratified sampling...')
     for size in sorted(mol_by_size.keys()):
-        new_data_list.extend(mol_by_size[size][:75])
+        new_data_list.extend(mol_by_size[size][:100])
 
     data_list = new_data_list
 
@@ -122,7 +123,7 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     # np.save(os.path.join(base_path, 'geom_permutation_stratified_sampling_75.npy'), perm)
     # del perm
 
-    perm = np.load(os.path.join(base_path, 'geom_permutation_stratified_sampling_75.npy'))
+    perm = np.load(os.path.join(base_path, 'geom_permutation_stratified_sampling_100.npy'))
     data_list = [data_list[i] for i in perm]
 
     num_mol = len(data_list)
