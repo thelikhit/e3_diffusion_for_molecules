@@ -117,7 +117,7 @@ parser.add_argument('--diffusion_noise_context', type=str, default=None,
                     help='num_atoms, mol_prop')
 args = parser.parse_args()
 
-data_file = './data/geom/geom_drugs_10.npy'
+data_file = './data/geom/geom_drugs_30.npy'
 
 if args.remove_h:
     raise NotImplementedError()
