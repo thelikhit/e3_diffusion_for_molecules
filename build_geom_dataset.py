@@ -67,7 +67,7 @@ def extract_conformers(args):
 
 
 def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
-                    filter_size=None, n=10000):
+                    filter_size=None):
     from pathlib import Path
     path = Path(conformation_file)
     base_path = path.parent.absolute()
@@ -76,24 +76,15 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     all_data = np.load(conformation_file)  # 2d array: num_atoms x 5
 
     # choose n molecules
-    mol_id_full = all_data[:, 0].astype(int)
-    last_atom_index = np.where(mol_id_full == n-1)[0][-1] + 1
-    all_data = all_data[:last_atom_index, :]
+    # mol_id_full = all_data[:, 0].astype(int)
+    # last_atom_index = np.where(mol_id_full == n-1)[0][-1] + 1
+    # all_data = all_data[:last_atom_index, :]
 
     mol_id = all_data[:, 0].astype(int)
     conformers = all_data[:, 1:]
     # Get ids corresponding to new molecules
     split_indices = np.nonzero(mol_id[:-1] - mol_id[1:])[0] + 1
     data_list = np.split(conformers, split_indices)
-
-    # Calculate the number of atoms for each molecule
-    molecule_sizes = [mol.shape[0] for mol in data_list]
-
-    # Use Counter to get the frequency distribution and convert to a dictionary
-    size_distribution = dict(sorted(Counter(molecule_sizes).items()))
-
-    # Print the distribution
-    print("Molecule size distribution:", size_distribution)
 
     # Filter based on molecule size.
     if filter_size is not None:
@@ -103,16 +94,45 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
 
         assert len(data_list) > 0, 'No molecules left after filter.'
 
+    # Create a dictionary to hold lists of molecules for each size
+    mol_by_size = {}
+    for mol in data_list:
+        size = mol.shape[0]
+        if size not in mol_by_size:
+            mol_by_size[size] = []
+        mol_by_size[size].append(mol)
+
+    np.random.seed(42)
+
+    # Create the new dataset with 100 molecules per size, or all if fewer than 100
+    new_data_list = []
+    print('With stratified sampling...')
+    for size in sorted(mol_by_size.keys()):
+        # Get the list of molecules for the current size
+        mols = mol_by_size[size]
+    
+        # Randomly shuffle the list of molecules
+        np.random.shuffle(mols)
+    
+        # Take the first 100 molecules from the shuffled list
+        new_data_list.extend(mols[:100])
+
+    data_list = new_data_list
+
+    modified_molecule_sizes = [mol.shape[0] for mol in data_list]
+    modified_size_distribution = dict(sorted(Counter(modified_molecule_sizes).items()))
+    print("Molecule size distribution:", modified_size_distribution)
+
     # CAREFUL! Only for first time run:
     # perm = np.random.permutation(len(data_list)).astype('int32')
     # print('Warning, currently taking a random permutation for '
     #       'train/val/test partitions, this needs to be fixed for'
     #       'reproducibility.')
-    # assert not os.path.exists(os.path.join(base_path, 'geom_permutation.npy'))
-    # np.save(os.path.join(base_path, 'geom_permutation.npy'), perm)
+    # assert not os.path.exists(os.path.join(base_path, 'geom_permutation_stratified_sampling_75.npy'))
+    # np.save(os.path.join(base_path, 'geom_permutation_stratified_sampling_75.npy'), perm)
     # del perm
 
-    perm = np.load(os.path.join(base_path, 'geom_permutation.npy'))
+    perm = np.load(os.path.join(base_path, 'geom_permutation_stratified_sampling_100.npy'))
     data_list = [data_list[i] for i in perm]
 
     num_mol = len(data_list)
@@ -120,6 +140,9 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
     val_index = int(num_mol * val_proportion)
     test_index = val_index + int(num_mol * test_proportion)
     val_data, test_data, train_data = np.split(data_list, [val_index, test_index])
+    print('train molecules=', len(train_data))
+    print('test molecules=', len(test_data))
+    print('val molecules=', len(val_data))
     return train_data, val_data, test_data
 
 

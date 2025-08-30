@@ -5,6 +5,7 @@ except ModuleNotFoundError:
     pass
 import build_geom_dataset
 from configs.datasets_config import geom_with_h
+from qm9 import dataset
 import copy
 import utils
 import argparse
@@ -117,8 +118,6 @@ parser.add_argument('--diffusion_noise_context', type=str, default=None,
                     help='num_atoms, mol_prop')
 args = parser.parse_args()
 
-data_file = './data/geom/geom_drugs_10.npy'
-
 if args.remove_h:
     raise NotImplementedError()
 else:
@@ -128,24 +127,15 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if args.cuda else "cpu")
 dtype = torch.float32
 
-split_data = build_geom_dataset.load_split_data(data_file, val_proportion=0.1, test_proportion=0.1, filter_size=args.filter_molecule_size, n=10000)
-transform = build_geom_dataset.GeomDrugsTransform(dataset_info, args.include_charges, device, args.sequential)
-dataloaders = {}
-for key, data_list in zip(['train', 'val', 'test'], split_data):
-    dataset = build_geom_dataset.GeomDrugsDataset(data_list, transform=transform)
-    shuffle = (key == 'train') and not args.sequential
-
-    # Sequential dataloading disabled for now.
-    dataloaders[key] = build_geom_dataset.GeomDrugsDataLoader(
-        sequential=args.sequential, dataset=dataset, batch_size=args.batch_size,
-        shuffle=shuffle)
-del split_data
-
 atom_encoder = dataset_info['atom_encoder']
 atom_decoder = dataset_info['atom_decoder']
 
 # args, unparsed_args = parser.parse_known_args()
 args.wandb_usr = utils.get_wandb_username(args.wandb_usr)
+
+args.cuda = not args.no_cuda and torch.cuda.is_available()
+args.device = torch.device("cuda" if args.cuda else "cpu")
+dtype = torch.float32
 
 if args.resume is not None:
     exp_name = args.exp_name + '_resume'
@@ -175,8 +165,10 @@ kwargs = {'entity': args.wandb_usr, 'name': args.exp_name, 'project': 'e3_diffus
 wandb.init(**kwargs)
 wandb.save('*.txt')
 
-data_dummy = next(iter(dataloaders['train']))
+args.dataset = 'geom'
+dataloaders, charge_scale = dataset.retrieve_dataloaders(args)
 
+data_dummy = next(iter(dataloaders['train']))
 
 if len(args.conditioning) > 0:
     print(f'Conditioning on {args.conditioning}')
