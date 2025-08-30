@@ -5,6 +5,7 @@ except ModuleNotFoundError:
     pass
 import build_geom_dataset
 from configs.datasets_config import geom_with_h
+from qm9 import dataset
 import copy
 import utils
 import argparse
@@ -147,6 +148,10 @@ atom_decoder = dataset_info['atom_decoder']
 # args, unparsed_args = parser.parse_known_args()
 args.wandb_usr = utils.get_wandb_username(args.wandb_usr)
 
+args.cuda = not args.no_cuda and torch.cuda.is_available()
+args.device = torch.device("cuda" if args.cuda else "cpu")
+dtype = torch.float32
+
 if args.resume is not None:
     exp_name = args.exp_name + '_resume'
     start_epoch = args.start_epoch
@@ -174,6 +179,9 @@ kwargs = {'entity': args.wandb_usr, 'name': args.exp_name, 'project': 'e3_diffus
           'settings': wandb.Settings(_disable_stats=True), 'reinit': True, 'mode': mode}
 wandb.init(**kwargs)
 wandb.save('*.txt')
+
+args.dataset = 'geom'
+dataloaders, charge_scale = dataset.retrieve_dataloaders(args)
 
 data_dummy = next(iter(dataloaders['train']))
 

@@ -67,7 +67,7 @@ def extract_conformers(args):
 
 
 def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
-                    filter_size=None, n=10000):
+                    filter_size=None):
     from pathlib import Path
     path = Path(conformation_file)
     base_path = path.parent.absolute()
@@ -102,11 +102,20 @@ def load_split_data(conformation_file, val_proportion=0.1, test_proportion=0.1,
             mol_by_size[size] = []
         mol_by_size[size].append(mol)
 
+    np.random.seed(42)
+
     # Create the new dataset with 100 molecules per size, or all if fewer than 100
     new_data_list = []
     print('With stratified sampling...')
     for size in sorted(mol_by_size.keys()):
-        new_data_list.extend(mol_by_size[size][:100])
+        # Get the list of molecules for the current size
+        mols = mol_by_size[size]
+    
+        # Randomly shuffle the list of molecules
+        np.random.shuffle(mols)
+    
+        # Take the first 100 molecules from the shuffled list
+        new_data_list.extend(mols[:100])
 
     data_list = new_data_list
 
