@@ -29,9 +29,9 @@ def retrieve_dataloaders(cfg):
             datasets = filter_atoms(datasets, filter_n_atoms)
             
             
-        target_train_samples = 10000
-        target_val_samples = 1000
-        target_test_samples = 1000
+        target_train_samples = 1000
+        target_val_samples = 100
+        target_test_samples = 100
 
         # Set a seed for reproducibility
         seed = 42
@@ -65,7 +65,7 @@ def retrieve_dataloaders(cfg):
     elif 'geom' in cfg.dataset:
         import build_geom_dataset
         from configs.datasets_config import get_dataset_info
-        data_file = './data/geom/geom_drugs_30.npy'
+        data_file = './data/geom/geom_drugs_3.npy'
         dataset_info = get_dataset_info(cfg.dataset, cfg.remove_h)
 
         # Retrieve QM9 dataloaders
