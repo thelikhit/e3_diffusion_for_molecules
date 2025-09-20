@@ -197,8 +197,7 @@ gradnorm_queue.add(3000)  # Add large value that will be flushed.
 
 def main():
     if args.resume is not None:
-        flow_state_dict = torch.load(join(args.resume, 'flow.npy'))
-        dequantizer_state_dict = torch.load(join(args.resume, 'dequantizer.npy'))
+        flow_state_dict = torch.load(join(args.resume, 'generative_model.npy'))
         optim_state_dict = torch.load(join(args.resume, 'optim.npy'))
         model.load_state_dict(flow_state_dict)
         optim.load_state_dict(optim_state_dict)
