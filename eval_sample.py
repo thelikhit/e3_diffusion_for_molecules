@@ -142,22 +142,22 @@ def main():
     print('Sampling handful of molecules.')
     sample_different_sizes_and_save(
         args, eval_args, device, flow, nodes_dist,
-        dataset_info=dataset_info, n_samples=30)
+        dataset_info=dataset_info, n_samples=1)
 
     print('Sampling stable molecules.')
     sample_only_stable_different_sizes_and_save(
         args, eval_args, device, flow, nodes_dist,
-        dataset_info=dataset_info, n_samples=10, n_tries=2*10)
+        dataset_info=dataset_info, n_samples=1, n_tries=5)
     print('Visualizing molecules.')
     vis.visualize(
         join(eval_args.model_path, 'eval/molecules/'), dataset_info,
-        max_num=100, spheres_3d=True)
+        max_num=10, spheres_3d=True)
 
     print('Sampling visualization chain.')
     save_and_sample_chain(
         args, eval_args, device, flow,
         n_tries=eval_args.n_tries, n_nodes=eval_args.n_nodes,
-        dataset_info=dataset_info)
+        dataset_info=dataset_info, num_chains=1)
 
 
 if __name__ == "__main__":
