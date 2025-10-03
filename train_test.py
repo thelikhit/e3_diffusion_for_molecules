@@ -12,7 +12,7 @@ import time
 import torch
 
 
-def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim,
+def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim, optim_gamma,
                 nodes_dist, gradnorm_queue, dataset_info, prop_dist):
     model_dp.train()
     model.train()
@@ -55,7 +55,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         else:
             noise_context = num_atoms.unsqueeze(1)
 
-
+        # ==== diffusion model training ====
         optim.zero_grad()
 
         # transform batch through flow
@@ -71,6 +71,24 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim.step()
+
+        # ==== noise schedule training ====
+        optim_gamma.zero_grad()
+
+        # transform batch through flow
+        _, _, _, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+                                                                x, h, node_mask, edge_mask, context, noise_context)
+        # L2 error
+        l2_error = loss_dict['error']
+        l2_error.backward()
+
+        if args.clip_grad:
+            grad_norm = utils.gradient_clipping(model, gradnorm_queue)
+        else:
+            grad_norm = 0.
+
+        optim_gamma.step()
+
 
         # Update EMA if enabled.
         if args.ema_decay > 0:

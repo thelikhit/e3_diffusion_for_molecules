@@ -31,6 +31,7 @@ def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, ed
 
         # Average over batch.
         nll = nll.mean(0)
+        loss_dict['error'] = loss_dict['error'].mean(0)
 
         reg_term = torch.tensor([0.]).to(nll.device)
         mean_abs_z = 0.

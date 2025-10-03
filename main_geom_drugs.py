@@ -187,9 +187,8 @@ assert args.diffusion_noise_context in ('num_atoms', None)
 # Create EGNN flow
 model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloader_train=dataloaders['train'])
 model = model.to(device)
-optim = get_optim(args, model)
+optim, optim_gamma = get_optim(args, model)
 # print(model)
-
 
 gradnorm_queue = utils.Queue()
 gradnorm_queue.add(3000)  # Add large value that will be flushed.
@@ -229,7 +228,7 @@ def main():
     for epoch in range(args.start_epoch, args.n_epochs):
         start_epoch = time.time()
         train_test.train_epoch(args, dataloaders['train'], epoch, model, model_dp, model_ema, ema, device, dtype,
-                               property_norms, optim, nodes_dist, gradnorm_queue, dataset_info,
+                               property_norms, optim, optim_gamma, nodes_dist, gradnorm_queue, dataset_info,
                                prop_dist)
         print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
@@ -251,6 +250,7 @@ def main():
                 if args.save_model:
                     args.current_epoch = epoch + 1
                     utils.save_model(optim, 'outputs/%s/optim.npy' % args.exp_name)
+                    utils.save_model(optim_gamma, 'outputs/%s/optim_gamma.npy' % args.exp_name)
                     utils.save_model(model, 'outputs/%s/generative_model.npy' % args.exp_name)
                     if args.ema_decay > 0:
                         utils.save_model(model_ema, 'outputs/%s/generative_model_ema.npy' % args.exp_name)
@@ -259,6 +259,7 @@ def main():
 
             if args.save_model:
                 utils.save_model(optim, 'outputs/%s/optim_%d.npy' % (args.exp_name, epoch))
+                utils.save_model(optim_gamma, 'outputs/%s/optim_gamma_%d.npy' % (args.exp_name, epoch))
                 utils.save_model(model, 'outputs/%s/generative_model_%d.npy' % (args.exp_name, epoch))
                 if args.ema_decay > 0:
                     utils.save_model(model_ema, 'outputs/%s/generative_model_ema_%d.npy' % (args.exp_name, epoch))
