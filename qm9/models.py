@@ -69,31 +69,32 @@ def get_model(args, device, dataset_info, dataloader_train):
     else:
         raise ValueError(args.probabilistic_model)
 
-
-def get_optim(args, generative_model):
     
-    non_gamma_params = []
-    gamma_params = []
+def get_optim(args, generative_model):
 
-    for name, param in generative_model.named_parameters():
-        if 'gamma' in name:
-            gamma_params.append(param)
-        else:
-            non_gamma_params.append(param)
-
+    # Optimizer for all parameters (including gamma)
     optim = torch.optim.AdamW(
-        non_gamma_params,
-        lr=args.lr, amsgrad=True,
+        generative_model.parameters(),
+        lr=args.lr,
+        amsgrad=True,
         weight_decay=1e-12
     )
 
+    gamma_params = []
+    for name, param in generative_model.named_parameters():
+        if 'gamma' in name:
+            gamma_params.append(param)
+
+    # Optimizer for only gamma parameters
     optim_gamma = torch.optim.AdamW(
         gamma_params,
-        lr=args.lr, amsgrad=True,
+        lr=args.lr,
+        amsgrad=True,
         weight_decay=1e-12
     )
 
     return optim, optim_gamma
+
 
 
 class DistributionNodes:

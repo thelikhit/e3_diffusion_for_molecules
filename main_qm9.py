@@ -195,7 +195,7 @@ model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloaders
 if prop_dist is not None:
     prop_dist.set_normalizer(property_norms)
 model = model.to(device)
-optim = get_optim(args, model)
+optim, optim_gamma = get_optim(args, model)
 # print(model)
 
 gradnorm_queue = utils.Queue()
@@ -244,7 +244,7 @@ def main():
         train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=model_dp,
                     model_ema=model_ema, ema=ema, device=device, dtype=dtype, property_norms=property_norms,
                     nodes_dist=nodes_dist, dataset_info=dataset_info,
-                    gradnorm_queue=gradnorm_queue, optim=optim, prop_dist=prop_dist)
+                    gradnorm_queue=gradnorm_queue, optim=optim, optim_gamma=optim_gamma, prop_dist=prop_dist)
         print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
         if epoch % args.test_epochs == 0:
