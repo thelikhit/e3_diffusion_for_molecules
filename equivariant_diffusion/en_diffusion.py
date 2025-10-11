@@ -423,10 +423,8 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
         a, b, d = self.compute_coefficients(c)
         polynomial_t = self.evaluate_polynomial(a, b, d, t)
 
-        with torch.no_grad():
-            zeros, ones = torch.zeros_like(t), torch.ones_like(t)
-            polynomial_0 = self.evaluate_polynomial(a, b, d, zeros)
-            polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
+        ones = torch.ones_like(t)
+        polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
 
         gamma_t = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t / polynomial_1)
 
