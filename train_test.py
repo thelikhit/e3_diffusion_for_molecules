@@ -61,9 +61,9 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         # transform batch through flow
         nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, noise_context)
-        # standard nll from forward KL
-        loss = nll + args.ode_regularization * reg_term
-        loss.backward()
+        # standard nll from forward KL (l2 loss in practice)
+        loss_dm = nll + args.ode_regularization * reg_term
+        loss_dm.backward()
 
         if args.clip_grad:
             grad_norm = utils.gradient_clipping(model, gradnorm_queue)
@@ -71,16 +71,17 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim.step()
+        # ==============================
 
         # ==== noise schedule training ====
         optim_gamma.zero_grad()
 
         # transform batch through flow
-        _, _, _, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, noise_context)
-        # L2 error
-        error = loss_dict['error']
-        error.backward()
+        ## standard nll from forward KL (l2 loss in practice)
+        loss_ns = nll + args.ode_regularization * reg_term
+        loss_ns.backward()
 
         if args.clip_grad:
             grad_norm = utils.gradient_clipping(model, gradnorm_queue)
@@ -88,7 +89,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim_gamma.step()
-
+        # ================================
 
         # Update EMA if enabled.
         if args.ema_decay > 0:
@@ -96,7 +97,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         if i % args.n_report_steps == 0:
             print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
-                  f"Loss {loss.item():.2f}, NLL: {nll.item():.2f}, Error: {error.item():.2f}"
+                  f"Loss Diffusion Model {loss_dm.item():.2f}, Loss Scheduler {loss_ns.item():.2f} NLL: {nll.item():.2f}"
                   f"RegTerm: {reg_term.item():.1f}, "
                   f"GradNorm: {grad_norm:.1f}")
         nll_epoch.append(nll.item())
@@ -118,12 +119,13 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         if args.break_train_epoch:
             break
     wandb.log({"Train Epoch NLL": np.mean(nll_epoch)}, commit=False)
-    wandb.log({"Train Epoch Loss": loss.item()}, commit=False)
-    wandb.log({"Error": error.item()}, commit=False)
+    wandb.log({"Train Epoch Loss": loss_dm.item()}, commit=False)
+    wandb.log({"Train Epoch Loss (Scheduler)": loss_ns.item()}, commit=False)
     wandb.log({
         "losses": {
             "kl_prior": loss_dict['kl_prior'].mean().item(),
             "estimator_loss_terms": loss_dict['estimator_loss_terms'].mean().item(),
+            "error": loss_dict['error'].mean().item(),
             "neg_log_constants": loss_dict['neg_log_constants'].mean().item(),
             "loss_t": loss_dict['loss_t'].mean().item()
         }
