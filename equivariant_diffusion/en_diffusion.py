@@ -976,9 +976,16 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         sigma2_t_given_s, sigma_t_given_s, alpha_t_given_s = \
             self.sigma_and_alpha_t_given_s(gamma_t, gamma_s, zt)
+        
+        alpha_t_given_s = torch.nan_to_num(alpha_t_given_s, nan=1e-12, posinf=1e6, neginf=1e-12).clamp_min(1e-12)
+        sigma_t_given_s = torch.nan_to_num(sigma_t_given_s, nan=1e-12, posinf=1e6, neginf=1e-12).clamp_min(1e-12)
+        sigma2_t_given_s = torch.nan_to_num(sigma2_t_given_s, nan=0.0, posinf=1e6, neginf=0.0).clamp_min(0.0)  
 
         sigma_s = self.sigma(gamma_s, target_tensor=zt)
         sigma_t = self.sigma(gamma_t, target_tensor=zt)
+
+        sigma_s = torch.nan_to_num(sigma_s, nan=0.0, posinf=1e6, neginf=0.0).clamp_min(1e-12)
+        sigma_t = torch.nan_to_num(sigma_t, nan=0.0, posinf=1e6, neginf=0.0).clamp_min(1e-12)
 
         # Neural net prediction.
         eps_t = self.phi(zt, t, node_mask, edge_mask, context)
