@@ -14,7 +14,6 @@ import torch
 
 def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim,
                 nodes_dist, gradnorm_queue, dataset_info, prop_dist):
-    model_dp.train()
     model.train()
     nll_epoch = []
     n_iterations = len(loader)
@@ -59,7 +58,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         optim.zero_grad()
 
         # transform batch through flow
-        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, noise_context)
         # standard nll from forward KL
         loss = nll + args.ode_regularization * reg_term
@@ -71,10 +70,6 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim.step()
-
-        # Update EMA if enabled.
-        if args.ema_decay > 0:
-            ema.update_model_average(model_ema, model)
 
         if i % args.n_report_steps == 0:
             print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
