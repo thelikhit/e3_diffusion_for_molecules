@@ -172,9 +172,6 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
             nll_epoch += nll.item() * batch_size
             n_samples += batch_size
-            if i % args.n_report_steps == 0:
-                print(f"\r {partition} NLL \t epoch: {epoch}, iter: {i}/{n_iterations}, "
-                      f"NLL: {nll_epoch/n_samples:.2f}")
 
     return nll_epoch/n_samples
 
