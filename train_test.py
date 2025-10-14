@@ -62,7 +62,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             toy_loss.backward()
             optim_gamma.step()
             return
-        
+                
         # transform batch through flow
         nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, noise_context)
@@ -76,6 +76,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim.step()
+        optim_gamma.step()
 
         if i % args.n_report_steps == 0:
             print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
