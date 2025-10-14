@@ -224,7 +224,6 @@ for epoch in range(args.start_epoch, args.n_epochs):
                 optim=optim, optim_gamma=optim_gamma,
                 nodes_dist=nodes_dist, dataset_info=dataset_info,
                 gradnorm_queue=gradnorm_queue, prop_dist=prop_dist)
-    print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
     utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
@@ -252,8 +251,6 @@ for epoch in range(args.start_epoch, args.n_epochs):
             with open('outputs/%s/args.pickle' % args.exp_name, 'wb') as f:
                 pickle.dump(args, f)
 
-        print('Val loss: %.4f \t Test loss:  %.4f' % (nll_val, nll_test))
-        print('Best val loss: %.4f \t Best test loss:  %.4f' % (best_nll_val, best_nll_test))
         wandb.log({"Val loss ": nll_val}, commit=True)
         wandb.log({"Test loss ": nll_test}, commit=True)
         wandb.log({"Best cross-validated test loss ": best_nll_test}, commit=True)
