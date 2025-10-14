@@ -217,6 +217,7 @@ if args.resume is not None:
 
 best_nll_val = 1e8
 best_nll_test = 1e8
+print("FLAG: ALTERNATIVE TRAINING")
 for epoch in range(args.start_epoch, args.n_epochs):
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
