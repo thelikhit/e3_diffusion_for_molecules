@@ -62,21 +62,51 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             toy_loss.backward()
             optim_gamma.step()
             return
-                
-        # transform batch through flow
-        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
-                                                                x, h, node_mask, edge_mask, context, noise_context)
-        # standard nll from forward KL
-        loss = nll + args.ode_regularization * reg_term
-        loss.backward()
+        
+        if (epoch // 10) % 2 == 0:
 
-        if args.clip_grad:
-            grad_norm = utils.gradient_clipping(model, gradnorm_queue)
+            # update only optim parameters
+            for name, param in model.named_parameters():
+                if name.startswith('gamma'):
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
+
+            # transform batch through flow
+            nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
+                                                                    x, h, node_mask, edge_mask, context, noise_context)
+            # standard nll from forward KL
+            loss = nll + args.ode_regularization * reg_term
+            loss.backward()
+
+            if args.clip_grad:
+                grad_norm = utils.gradient_clipping(model, gradnorm_queue)
+            else:
+                grad_norm = 0.
+
+            optim.step()
+        
         else:
-            grad_norm = 0.
+            # update only optim_gamma parameters
+            for name, param in model.named_parameters():
+                if name.startswith('gamma'):
+                    param.requires_grad = True
+                else:
+                    param.requires_grad = False
 
-        optim.step()
-        optim_gamma.step()
+            # transform batch through flow
+            nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+                                                                    x, h, node_mask, edge_mask, context, noise_context)
+            # standard nll from forward KL
+            loss = nll + args.ode_regularization * reg_term
+            loss.backward()
+
+            if args.clip_grad:
+                grad_norm = utils.gradient_clipping(model_dp, gradnorm_queue)
+            else:
+                grad_norm = 0.
+
+            optim_gamma.step()
 
         if i % args.n_report_steps == 0:
             print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
