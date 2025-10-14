@@ -119,6 +119,7 @@ parser.add_argument('--diffusion_noise_context', type=str, default=None,
                     help='num_atoms, mol_properties')
 
 args = parser.parse_args()
+print(args)
 
 dataset_info = get_dataset_info(args.dataset, args.remove_h)
 
@@ -159,7 +160,6 @@ if args.resume is not None:
     print(args)
 
 utils.create_folders(args)
-# print(args)
 
 
 # Wandb config
@@ -215,12 +215,10 @@ if args.resume is not None:
 best_nll_val = 1e8
 best_nll_test = 1e8
 for epoch in range(args.start_epoch, args.n_epochs):
-    start_epoch = time.time()
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
                 nodes_dist=nodes_dist, dataset_info=dataset_info,
                 gradnorm_queue=gradnorm_queue, optim=optim, prop_dist=prop_dist)
-    print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
     utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
@@ -248,8 +246,6 @@ for epoch in range(args.start_epoch, args.n_epochs):
             with open('outputs/%s/args.pickle' % args.exp_name, 'wb') as f:
                 pickle.dump(args, f)
 
-        print('Val loss: %.4f \t Test loss:  %.4f' % (nll_val, nll_test))
-        print('Best val loss: %.4f \t Best test loss:  %.4f' % (best_nll_val, best_nll_test))
         wandb.log({"Val loss ": nll_val}, commit=True)
         wandb.log({"Test loss ": nll_test}, commit=True)
         wandb.log({"Best cross-validated test loss ": best_nll_test}, commit=True)
