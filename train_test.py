@@ -57,7 +57,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         optim.zero_grad()
         optim_gamma.zero_grad()
 
-        if epoch < 200 and args.diffusion_noise_schedule == 'learned_adaptive':
+        if epoch < 250 and args.diffusion_noise_schedule == 'learned_adaptive':
             toy_loss = losses.compute_toy_loss(args, model, x, h, node_mask, edge_mask, context, noise_context)
             toy_loss.backward()
             optim_gamma.step()
