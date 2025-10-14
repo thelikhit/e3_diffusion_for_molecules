@@ -12,7 +12,7 @@ import time
 import torch
 
 
-def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim,
+def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim, optim_gamma,
                 nodes_dist, gradnorm_queue, dataset_info, prop_dist):
     model.train()
     nll_epoch = []
@@ -54,9 +54,15 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         else:
             noise_context = num_atoms.unsqueeze(1)
 
-
         optim.zero_grad()
+        optim_gamma.zero_grad()
 
+        if epoch < 200 and args.diffusion_noise_schedule == 'learned_adaptive':
+            toy_loss = losses.compute_toy_loss(args, model, x, h, node_mask, edge_mask, context, noise_context)
+            toy_loss.backward()
+            optim_gamma.step()
+            return
+        
         # transform batch through flow
         nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context, noise_context)

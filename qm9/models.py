@@ -71,12 +71,28 @@ def get_model(args, device, dataset_info, dataloader_train):
 
 
 def get_optim(args, generative_model):
-    optim = torch.optim.AdamW(
-        generative_model.parameters(),
-        lr=args.lr, amsgrad=True,
-        weight_decay=1e-12)
 
-    return optim
+    gamma_params = []
+    non_gamma_params = []
+    for name, param in generative_model.named_parameters():
+        if "gamma." in name:
+            gamma_params.append(param)
+        else:
+            non_gamma_params.append(param)
+
+    optim_gamma = torch.optim.SGD(
+        gamma_params,
+        lr=0.0,
+    )
+    
+    optim = torch.optim.AdamW(
+        non_gamma_params,
+        lr=args.lr,
+        amsgrad=True,
+        weight_decay=1e-12
+    )
+
+    return optim, optim_gamma
 
 
 class DistributionNodes:

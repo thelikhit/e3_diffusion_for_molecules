@@ -125,6 +125,9 @@ dataset_info = get_dataset_info(args.dataset, args.remove_h)
 atom_encoder = dataset_info['atom_encoder']
 atom_decoder = dataset_info['atom_decoder']
 
+wandb.login(key="14b7e46b8bb0257f1e8b54eb4bc146c1545c4bb3")
+
+
 # args, unparsed_args = parser.parse_known_args()
 args.wandb_usr = utils.get_wandb_username(args.wandb_usr)
 
@@ -195,7 +198,7 @@ model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloaders
 if prop_dist is not None:
     prop_dist.set_normalizer(property_norms)
 model = model.to(device)
-optim = get_optim(args, model)
+optim, optim_gamma = get_optim(args, model)
 
 gradnorm_queue = utils.Queue()
 gradnorm_queue.add(3000)  # Add large value that will be flushed.
@@ -218,8 +221,9 @@ for epoch in range(args.start_epoch, args.n_epochs):
     start_epoch = time.time()
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
+                optim=optim, optim_gamma=optim_gamma,
                 nodes_dist=nodes_dist, dataset_info=dataset_info,
-                gradnorm_queue=gradnorm_queue, optim=optim, prop_dist=prop_dist)
+                gradnorm_queue=gradnorm_queue, prop_dist=prop_dist)
     print(f"Epoch took {time.time() - start_epoch:.1f} seconds.")
 
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
