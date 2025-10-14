@@ -218,7 +218,6 @@ if args.resume is not None:
 best_nll_val = 1e8
 best_nll_test = 1e8
 for epoch in range(args.start_epoch, args.n_epochs):
-    start_epoch = time.time()
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
                 optim=optim, optim_gamma=optim_gamma,

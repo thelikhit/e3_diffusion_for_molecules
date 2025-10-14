@@ -57,7 +57,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         optim.zero_grad()
         optim_gamma.zero_grad()
 
-        if epoch < 200 and args.diffusion_noise_schedule == 'learned_adaptive':
+        if epoch < 250 and args.diffusion_noise_schedule == 'learned_adaptive':
             toy_loss = losses.compute_toy_loss(args, model, x, h, node_mask, edge_mask, context, noise_context)
             toy_loss.backward()
             optim_gamma.step()
@@ -95,14 +95,14 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
                     param.requires_grad = False
 
             # transform batch through flow
-            nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
+            nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
                                                                     x, h, node_mask, edge_mask, context, noise_context)
             # standard nll from forward KL
             loss = nll + args.ode_regularization * reg_term
             loss.backward()
 
             if args.clip_grad:
-                grad_norm = utils.gradient_clipping(model_dp, gradnorm_queue)
+                grad_norm = utils.gradient_clipping(model, gradnorm_queue)
             else:
                 grad_norm = 0.
 
