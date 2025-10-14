@@ -82,7 +82,7 @@ def get_optim(args, generative_model):
 
     optim_gamma = torch.optim.SGD(
         gamma_params,
-        lr=0.0,
+        lr=args.lr * 0.1,
     )
     
     optim = torch.optim.AdamW(
