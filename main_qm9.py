@@ -19,6 +19,8 @@ import time
 import pickle
 from qm9.utils import prepare_context, compute_mean_mad
 from train_test import train_epoch, test, analyze_and_save
+import random
+import numpy as np
 
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='debug_10')
@@ -119,6 +121,15 @@ parser.add_argument('--diffusion_noise_context', type=str, default=None,
                     help='num_atoms, mol_properties')
 
 args = parser.parse_args()
+
+# deterministic behavior
+seed = 42
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+np.random.seed(seed)
+random.seed(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 dataset_info = get_dataset_info(args.dataset, args.remove_h)
 
