@@ -63,7 +63,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             optim_gamma.step()
             return
         
-        if (epoch // 10) % 2 == 0:
+        if epoch % 50 != 0:
 
             # update only optim parameters
             for name, param in model.named_parameters():
