@@ -33,10 +33,6 @@ def retrieve_dataloaders(cfg):
         target_val_samples = 1000
         target_test_samples = 1000
 
-        # Set a seed for reproducibility
-        seed = 42
-        torch.manual_seed(seed)
-
         # Function to reduce dataset size
         def reduce_dataset_size(dataset_name, target_samples):
             if dataset_name in datasets:
