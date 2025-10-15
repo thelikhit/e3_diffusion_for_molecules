@@ -201,7 +201,6 @@ class ScaledNoiseSchedule(torch.nn.Module):
         for param, value in parameters.items():
             print(f"  - {param}: {value}")
 
-        # TODO: get dataset info, either geom or qm9
         n_nodes_data = dataset_info['n_nodes']
 
         self.min_n_nodes = min(n_nodes_data.keys())
@@ -221,34 +220,87 @@ class ScaledNoiseSchedule(torch.nn.Module):
             raise ValueError(noise_schedule)
 
         print('alphas2', alphas2)
-        sigmas2 = 1 - alphas2
+        
+        # sigmas2 = 1 - alphas2
+# 
+        # log_alphas2 = np.log(alphas2)
+        # log_sigmas2 = np.log(sigmas2)
+# 
+        # log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
+# 
+        # print('gamma', -log_alphas2_to_sigmas2)
+# 
+        # self.gamma = torch.nn.Parameter(
+        #     torch.from_numpy(-log_alphas2_to_sigmas2).float(),
+        #     requires_grad=False)
 
-        log_alphas2 = np.log(alphas2)
-        log_sigmas2 = np.log(sigmas2)
-
-        log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
-
-        print('gamma', -log_alphas2_to_sigmas2)
-
-        self.gamma = torch.nn.Parameter(
-            torch.from_numpy(-log_alphas2_to_sigmas2).float(),
+        self.alphas2 = torch.nn.Parameter(
+            torch.from_numpy(alphas2).float(),
             requires_grad=False)
+
+
+    def compute_b(self, n_nodes, n_min, n_max, b_min=0.85, b_max=1.15):
+        """
+        As we reduce the scaling factor b, it increases the noise level in the diffusion process
+        Using a smaller scaling factor, more information is destroyed
+        
+        Larger molecules new a faster noise schedule, that is smaller b
+        Smaller molecules need a slower noise schedule, that is larger b
+        NOTE: Inverse relationship between n_nodes and b
+        """
+        
+        b = b_max + (n_nodes - n_min) * (b_min - b_max) / (n_max - n_min)
+        return b
+    
+    def compute_b_inverted(self, n_nodes, n_min, n_max, b_min=0.85, b_max=1.15):
+        b = b_min + (n_nodes - n_min) * (b_max - b_min) / (n_max - n_min)
+        return b
+
 
     def forward(self, t, n_nodes):
 
-        t_int = torch.round(t * self.timesteps).long()
-        n_nodes = n_nodes.reshape_as(self.gamma[t_int])
+        # t_int = torch.round(t * self.timesteps).long()
+        # n_nodes = n_nodes.reshape_as(self.gamma[t_int])
+# 
+        # # min-max scaling
+        # n_nodes_scaled = (n_nodes - self.min_n_nodes) / (self.max_n_nodes - self.min_n_nodes)
+        # n_nodes_scaled_min, n_nodes_scaled_max = 0, 1
+# 
+        # # scale factor between [sf_min, sf_max]
+        # sf_min, sf_max = 0.90, 1.1
+        # sf = sf_min + (n_nodes_scaled - n_nodes_scaled_min) * ((sf_max - sf_min) / (n_nodes_scaled_max - n_nodes_scaled_min))
+# 
+        # scaled_noise = self.gamma[t_int] * sf
+# 
+        # return scaled_noise
 
-        # min-max scaling
-        n_nodes_scaled = (n_nodes - self.min_n_nodes) / (self.max_n_nodes - self.min_n_nodes)
-        n_nodes_scaled_min, n_nodes_scaled_max = 0, 1
+        if isinstance(self.alphas2, np.ndarray):
+            alphas2 = torch.from_numpy(alphas2).float()
 
-        # scale factor between [sf_min, sf_max]
-        sf_min, sf_max = 0.90, 1.1
-        sf = sf_min + (n_nodes_scaled - n_nodes_scaled_min) * ((sf_max - sf_min) / (n_nodes_scaled_max - n_nodes_scaled_min))
+        # Get discrete timestep indices
+        timesteps = self.alphas2.shape[0] - 1
+        t_int = torch.round(t * timesteps).long().clamp(0, timesteps)
 
-        scaled_noise = self.gamma[t_int] * sf
-        return scaled_noise
+        alphas2_t = self.alphas2[t_int].reshape_as(n_nodes)
+        alphas_t = torch.sqrt(alphas2_t)
+
+        b = self.compute_b(n_nodes, n_min=self.min_n_nodes, n_max=self.max_n_nodes).to(alphas_t.device)
+
+        alphas_prime = alphas_t * b
+        alphas_prime = torch.clamp(alphas_prime, 1e-12, 1.0 - 1e-12)
+
+        alphas2_prime = alphas_prime ** 2
+        sigmas2_prime = 1.0 - alphas2_prime
+
+        # Avoid log(0) by clamping
+        alphas2_prime = torch.clamp(alphas2_prime, 1e-12, 1.0)
+        sigmas2_prime = torch.clamp(sigmas2_prime, 1e-12, 1.0)
+
+        gammas_prime = -(torch.log(alphas2_prime) - torch.log(sigmas2_prime))
+        # clamp between predefined gamma.min() and gamma.max()
+        gammas_prime = torch.clamp(gammas_prime, -9.2, 9.2)
+
+        return gammas_prime
 
 
 class PredefinedNoiseSchedule(torch.nn.Module):
@@ -257,12 +309,6 @@ class PredefinedNoiseSchedule(torch.nn.Module):
     """
     def __init__(self, noise_schedule, timesteps, precision):
         super(PredefinedNoiseSchedule, self).__init__()
-
-        # print noise schedule class information
-        print(f"Noise Schedule class: {self.__class__.__name__}")
-        parameters = {k: v for k, v in locals().items() if k != 'self'}
-        for param, value in parameters.items():
-            print(f"  - {param}: {value}")
 
         self.timesteps = timesteps
 
@@ -293,6 +339,7 @@ class PredefinedNoiseSchedule(torch.nn.Module):
 
     def forward(self, t):
         t_int = torch.round(t * self.timesteps).long()
+        breakpoint()
         return self.gamma[t_int]
 
 
@@ -886,6 +933,7 @@ class EnVariationalDiffusion(torch.nn.Module):
                 gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, noise_context), x)
             else:
                 gamma_0 = self.inflate_batch_array(self.gamma(t_zeros), x)
+
             alpha_0 = self.alpha(gamma_0, x)
             sigma_0 = self.sigma(gamma_0, x)
 
