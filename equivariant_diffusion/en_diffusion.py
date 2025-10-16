@@ -339,7 +339,6 @@ class PredefinedNoiseSchedule(torch.nn.Module):
 
     def forward(self, t):
         t_int = torch.round(t * self.timesteps).long()
-        breakpoint()
         return self.gamma[t_int]
 
 
