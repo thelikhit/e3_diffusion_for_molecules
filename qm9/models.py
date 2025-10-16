@@ -23,27 +23,6 @@ def get_model(args, device, dataset_info, dataloader_train):
         print('Warning: dynamics model is _not_ conditioned on time.')
         dynamics_in_node_nf = in_node_nf
 
-    if 'scaled' in args.diffusion_noise_schedule:
-        assert args.diffusion_noise_context == 'num_atoms', 'Noise schedule can only be scaled by number of atoms'
-
-    if args.diffusion_noise_context =='mol_properties':
-        assert len(args.conditioning) > 0, 'Noise schedule can only be conditioned on molecule properties when some conditioning properties are selected. '
-
-    if args.diffusion_noise_context == 'num_atoms':
-        noise_schedule_input_dim = 1
-    elif args.diffusion_noise_context == 'mol_prop':
-        noise_schedule_input_dim = len(args.conditioning)
-    else:
-        noise_schedule_input_dim = 0
-
-    noise_schedule = NoiseScheduleConfig(
-        scheduler_type=args.diffusion_noise_schedule,
-        noise_precision=args.diffusion_noise_precision,
-        dataset_info=dataset_info,
-        diffusion_noise_context=args.diffusion_noise_context,
-        input_features=noise_schedule_input_dim
-    )
-
     net_dynamics = EGNN_dynamics_QM9(
         in_node_nf=dynamics_in_node_nf, context_node_nf=args.context_node_nf,
         n_dims=3, device=device, hidden_nf=args.nf,
@@ -57,7 +36,7 @@ def get_model(args, device, dataset_info, dataloader_train):
             dynamics=net_dynamics,
             in_node_nf=in_node_nf,
             n_dims=3,
-            noise_schedule=noise_schedule,
+            noise_schedule=args.diffusion_noise_schedule,
             timesteps=args.diffusion_steps,
             loss_type=args.diffusion_loss_type,
             norm_values=args.normalize_factors,

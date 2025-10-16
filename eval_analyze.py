@@ -17,7 +17,7 @@ from configs.datasets_config import get_dataset_info
 from os.path import join
 from qm9.sampling import sample
 from qm9.analyze import analyze_stability_for_molecules, analyze_node_distribution
-from qm9.utils import prepare_context, compute_mean_mad, prepare_noise_context
+from qm9.utils import prepare_context, compute_mean_mad
 from qm9 import visualizer as qm9_visualizer
 import qm9.losses as losses
 import numpy as np
@@ -106,16 +106,9 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                 else:
                     context = None
 
-                if args.diffusion_noise_context == None:
-                    noise_context = None
-                elif args.diffusion_noise_context == 'mol_prop':
-                    noise_context = prepare_noise_context(args.conditioning, data).to(device, dtype)
-                else:
-                    noise_context = num_atoms.unsqueeze(1)
-
                 # transform batch through flow
                 nll, _, _, _ = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, node_mask,
-                                                        edge_mask, context, noise_context)
+                                                        edge_mask, context)
                 # standard nll from forward KL
 
                 nll_epoch += nll.item() * batch_size

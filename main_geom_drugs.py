@@ -114,8 +114,6 @@ parser.add_argument('--filter_molecule_size', type=int, default=None,
                     help="Only use molecules below this size.")
 parser.add_argument('--sequential', action='store_true',
                     help='Organize data by size to reduce average memory usage.')
-parser.add_argument('--diffusion_noise_context', type=str, default=None,
-                    help='num_atoms, mol_prop')
 args = parser.parse_args()
 
 if args.remove_h:
@@ -180,9 +178,6 @@ else:
     property_norms = None
 
 args.context_node_nf = context_node_nf
-
-# no mol_properties context for drugs
-assert args.diffusion_noise_context in ('num_atoms', None)
 
 # Create EGNN flow
 model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloader_train=dataloaders['train'])

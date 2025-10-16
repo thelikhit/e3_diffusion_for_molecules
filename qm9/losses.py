@@ -9,7 +9,7 @@ def assert_correctly_masked(variable, node_mask):
     assert (variable * (1 - node_mask)).abs().sum().item() < 1e-8
 
 
-def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, edge_mask, context, noise_context):
+def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, edge_mask, context):
     bs, n_nodes, n_dims = x.size()
 
 
@@ -20,7 +20,7 @@ def compute_loss_and_nll(args, generative_model, nodes_dist, x, h, node_mask, ed
 
         # Here x is a position tensor, and h is a dictionary with keys
         # 'categorical' and 'integer'.
-        nll, loss_dict = generative_model(x, h, node_mask, edge_mask, context, noise_context)
+        nll, loss_dict = generative_model(x, h, node_mask, edge_mask, context)
 
         N = node_mask.squeeze(2).sum(1).long()
 

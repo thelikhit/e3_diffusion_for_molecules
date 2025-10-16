@@ -18,7 +18,7 @@ from qm9.analyze import check_stability
 from os.path import join
 from qm9.sampling import sample_chain, sample
 from configs.datasets_config import get_dataset_info
-import numpy as p
+import numpy as np
 import random
 
 # deterministic behavior
@@ -29,7 +29,6 @@ np.random.seed(seed)
 random.seed(seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
-
 
 
 def check_mask_correct(variables, node_mask):
@@ -145,7 +144,7 @@ def main():
         args, device, dataset_info, dataloaders['train'])
     flow.to(device)
 
-    fn = 'generative_model_ema.npy' if args.ema_decay > 0 else 'generative_model.npy'
+    fn = 'generative_model.npy'
     flow_state_dict = torch.load(join(eval_args.model_path, fn),
                                  map_location=device)
 

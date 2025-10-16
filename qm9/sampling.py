@@ -69,13 +69,6 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     else:
         context = None
 
-    if args.diffusion_noise_context == None:
-        noise_context = None
-    elif args.diffusion_noise_context == 'mol_prop':
-        noise_context = prop_dist.sample(n_nodes).unsqueeze(0).to(device) # must be bs x dim
-    else:
-        noise_context = torch.tensor([[n_nodes]], dtype=torch.float32).to(device)
-
     node_mask = torch.ones(n_samples, n_nodes, 1).to(device)
 
     edge_mask = (1 - torch.eye(n_nodes)).unsqueeze(0)
@@ -84,7 +77,7 @@ def sample_chain(args, device, flow, n_tries, dataset_info, prop_dist=None):
     if args.probabilistic_model == 'diffusion':
         one_hot, charges, x = None, None, None
         for i in range(n_tries):
-            chain = flow.sample_chain(n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=100, noise_context=noise_context)
+            chain = flow.sample_chain(n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=100)
             chain = reverse_tensor(chain)
 
             # Repeat last frame to see final sample better.
@@ -143,16 +136,8 @@ def sample(args, device, generative_model, dataset_info,
     else:
         context = None
 
-    if args.diffusion_noise_context == None:
-        noise_context = None
-    elif args.diffusion_noise_context == 'mol_prop':
-        noise_context = prop_dist.sample_batch(nodesxsample).to(device)
-    else:
-        # noise_context = nodesxsample.clone().detach()
-        noise_context = torch.tensor(nodesxsample, dtype=torch.float32).unsqueeze(1).to(device)
-
     if args.probabilistic_model == 'diffusion':
-        x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context=context, fix_noise=fix_noise, noise_context=noise_context)
+        x, h = generative_model.sample(batch_size, max_n_nodes, node_mask, edge_mask, context=context, fix_noise=fix_noise)
 
         assert_correctly_masked(x, node_mask)
         assert_mean_zero_with_mask(x, node_mask)
