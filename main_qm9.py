@@ -117,6 +117,8 @@ parser.add_argument('--normalization_factor', type=float, default=1,
                     help="Normalize the sum aggregation of EGNN")
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
+parser.add_argument('--input_scale_factor', type=float, default=1.0,
+                    help='scale factor for input scaling')
 
 args = parser.parse_args()
 print(args)

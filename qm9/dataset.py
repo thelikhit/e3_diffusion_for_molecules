@@ -29,9 +29,9 @@ def retrieve_dataloaders(cfg):
             datasets = filter_atoms(datasets, filter_n_atoms)
             
             
-        target_train_samples = 10000
-        target_val_samples = 1000
-        target_test_samples = 1000
+        target_train_samples = 1000
+        target_val_samples = 100
+        target_test_samples = 100
 
         # Function to reduce dataset size
         def reduce_dataset_size(dataset_name, target_samples):

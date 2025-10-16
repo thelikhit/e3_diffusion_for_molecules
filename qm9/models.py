@@ -3,7 +3,6 @@ from torch.distributions.categorical import Categorical
 
 import numpy as np
 from egnn.models import EGNN_dynamics_QM9
-from noise_schedule.noise_schedule import NoiseScheduleConfig
 
 from equivariant_diffusion.en_diffusion import EnVariationalDiffusion
 
@@ -40,8 +39,9 @@ def get_model(args, device, dataset_info, dataloader_train):
             timesteps=args.diffusion_steps,
             loss_type=args.diffusion_loss_type,
             norm_values=args.normalize_factors,
-            include_charges=args.include_charges
-            )
+            include_charges=args.include_charges,
+            input_scale_factor=args.input_scale_factor
+        )
 
         return vdm, nodes_dist, prop_dist
 

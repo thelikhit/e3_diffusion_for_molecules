@@ -10,7 +10,6 @@ from egnn.egnn_new import EGNN, GNN
 from egnn.models import EGNN_dynamics_QM9
 from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
-from noise_schedule.noise_schedule import NoiseScheduleConfig
 from configs.datasets_config import get_dataset_info
 
 
@@ -286,9 +285,10 @@ class EnVariationalDiffusion(torch.nn.Module):
     """
     def __init__(
             self,
-            dynamics: models.EGNN_dynamics_QM9, in_node_nf: int, n_dims: int, noise_schedule: NoiseScheduleConfig,
-            timesteps: int = 1000, parametrization='eps', loss_type='vlb', norm_values=(1., 1., 1.),
-            norm_biases=(None, 0., 0.), include_charges=True):
+            dynamics: models.EGNN_dynamics_QM9, in_node_nf: int, n_dims: int,
+            timesteps: int = 1000, parametrization='eps', noise_schedule='learned',
+            noise_precision=1e-4, loss_type='l2', norm_values=(1., 1., 1.),
+            norm_biases=(None, 0., 0.), include_charges=True, input_scale_factor=1.0):
         super().__init__()
 
         assert loss_type in {'vlb', 'l2'}
@@ -299,9 +299,11 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Only supported parametrization.
         assert parametrization == 'eps'
 
-        self.gamma = PredefinedNoiseSchedule(noise_schedule=noise_schedule.scheduler_type, 
-                                                 timesteps=timesteps,
-                                                 precision=noise_schedule.noise_precision)
+        if noise_schedule == 'learned':
+            self.gamma = GammaNetwork()
+        else:
+            self.gamma = PredefinedNoiseSchedule(noise_schedule, timesteps=timesteps,
+                                                 precision=noise_precision)
 
         # The network that will predict the denoising.
         self.dynamics = dynamics
@@ -312,6 +314,7 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         self.T = timesteps
         self.parametrization = parametrization
+        self.input_scale_factor = input_scale_factor
 
         self.norm_values = norm_values
         self.norm_biases = norm_biases
@@ -617,7 +620,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Concatenate x, h[integer] and h[categorical].
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
         # Sample z_t given x, h for timestep t, from q(z_t | x, h)
-        z_t = alpha_t * xh + sigma_t * eps
+        z_t = alpha_t * self.input_scale_factor * xh + sigma_t * eps
 
         diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
 
@@ -664,7 +667,7 @@ class EnVariationalDiffusion(torch.nn.Module):
             # Sample z_0 given x, h for timestep t, from q(z_t | x, h)
             eps_0 = self.sample_combined_position_feature_noise(
                 n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
-            z_0 = alpha_0 * xh + sigma_0 * eps_0
+            z_0 = alpha_0 * self.input_scale_factor * xh + sigma_0 * eps_0
 
             net_out = self.phi(z_0, t_zeros, node_mask, edge_mask, context)
 
