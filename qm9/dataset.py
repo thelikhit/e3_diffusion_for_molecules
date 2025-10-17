@@ -55,12 +55,13 @@ def retrieve_dataloaders(cfg):
                     if len(current_dataset) > target_samples:
                         indices = torch.randperm(len(current_dataset))[:target_samples]
                         datasets[dataset_name] = Subset(current_dataset, indices)
-                        print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
-                    else:
-                        print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
-                else:
-                    print(f"Warning: '{dataset_name}' dataset not found in the initialized datasets.")
+                        # print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
+                    # else:
+                        # print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
+                # else:
+                    # print(f"Warning: '{dataset_name}' dataset not found in the initialized datasets.")
 
+            
             reduce_dataset_size('train', target_train_samples)
             reduce_dataset_size('valid', target_val_samples)
             reduce_dataset_size('test', target_test_samples)
