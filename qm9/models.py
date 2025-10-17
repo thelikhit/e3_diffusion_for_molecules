@@ -75,7 +75,6 @@ class DistributionNodes:
         self.prob = torch.from_numpy(prob).float()
 
         entropy = torch.sum(self.prob * torch.log(self.prob + 1e-30))
-        print("Entropy of n_nodes: H[N]", entropy.item())
 
         self.m = Categorical(torch.tensor(prob))
 

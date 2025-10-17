@@ -63,11 +63,11 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         optim.step()
 
-        if i % args.n_report_steps == 0:
-            print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
-                  f"Loss {loss.item():.2f}, NLL: {nll.item():.2f}, "
-                  f"RegTerm: {reg_term.item():.1f}, "
-                  f"GradNorm: {grad_norm:.1f}")
+        # if i % args.n_report_steps == 0:
+        #     print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
+        #           f"Loss {loss.item():.2f}, NLL: {nll.item():.2f}, "
+        #           f"RegTerm: {reg_term.item():.1f}, "
+        #           f"GradNorm: {grad_norm:.1f}")
         nll_epoch.append(nll.item())
         wandb.log({"Batch NLL": nll.item()}, commit=True)
         if args.break_train_epoch:
@@ -135,9 +135,9 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
             nll_epoch += nll.item() * batch_size
             n_samples += batch_size
-            if i % args.n_report_steps == 0:
-                print(f"\r {partition} NLL \t epoch: {epoch}, iter: {i}/{n_iterations}, "
-                      f"NLL: {nll_epoch/n_samples:.2f}")
+            # if i % args.n_report_steps == 0:
+            #     print(f"\r {partition} NLL \t epoch: {epoch}, iter: {i}/{n_iterations}, "
+            #           f"NLL: {nll_epoch/n_samples:.2f}")
 
     return nll_epoch/n_samples
 
