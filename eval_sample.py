@@ -58,8 +58,9 @@ def save_and_sample_chain(args, eval_args, device, flow,
 
 
 def sample_different_sizes_and_save(args, eval_args, device, generative_model,
-                                    nodes_dist, dataset_info, n_samples=10):
-    nodesxsample = nodes_dist.sample(n_samples)
+                                    nodes_dist, dataset_info, n_samples=1):
+    # nodesxsample = nodes_dist.sample(n_samples)
+    nodesxsample=torch.tensor([args.filter_n_atoms])
     one_hot, charges, x, node_mask = sample(
         args, device, generative_model, dataset_info,
         nodesxsample=nodesxsample)
@@ -72,10 +73,11 @@ def sample_different_sizes_and_save(args, eval_args, device, generative_model,
 
 def sample_only_stable_different_sizes_and_save(
         args, eval_args, device, flow, nodes_dist,
-        dataset_info, n_samples=10, n_tries=50):
-    assert n_tries > n_samples
+        dataset_info, n_samples=1, n_tries=1):
+    # assert n_tries > n_samples
 
-    nodesxsample = nodes_dist.sample(n_tries)
+    # nodesxsample = nodes_dist.sample(n_tries)
+    nodesxsample = torch.full((n_tries, ), args.filter_n_atoms)
     one_hot, charges, x, node_mask = sample(
         args, device, flow, dataset_info,
         nodesxsample=nodesxsample)
@@ -113,7 +115,7 @@ def main():
     parser.add_argument(
         '--n_tries', type=int, default=10,
         help='N tries to find stable molecule for gif animation')
-    parser.add_argument('--n_nodes', type=int, default=19,
+    parser.add_argument('--n_nodes', type=int, default=12,
                         help='number of atoms in molecule for gif animation')
 
     eval_args, unparsed_args = parser.parse_known_args()
@@ -149,6 +151,7 @@ def main():
                                  map_location=device)
 
     flow.load_state_dict(flow_state_dict)
+    flow.eval()
 
     print('Sampling handful of molecules.')
     sample_different_sizes_and_save(
@@ -158,17 +161,17 @@ def main():
     print('Sampling stable molecules.')
     sample_only_stable_different_sizes_and_save(
         args, eval_args, device, flow, nodes_dist,
-        dataset_info=dataset_info, n_samples=1, n_tries=5)
+        dataset_info=dataset_info, n_samples=1, n_tries=1)
     print('Visualizing molecules.')
     vis.visualize(
         join(eval_args.model_path, 'eval/molecules/'), dataset_info,
-        max_num=10, spheres_3d=True)
+        max_num=1, spheres_3d=True)
 
-    print('Sampling visualization chain.')
-    save_and_sample_chain(
-        args, eval_args, device, flow,
-        n_tries=eval_args.n_tries, n_nodes=eval_args.n_nodes,
-        dataset_info=dataset_info, num_chains=1)
+    # print('Sampling visualization chain.')
+    # save_and_sample_chain(
+    #   args, eval_args, device, flow,
+    #   n_tries=eval_args.n_tries, n_nodes=eval_args.n_nodes,
+    #   dataset_info=dataset_info, num_chains=1)
 
 
 if __name__ == "__main__":

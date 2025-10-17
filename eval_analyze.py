@@ -44,7 +44,7 @@ def check_mask_correct(variables, node_mask):
 
 def analyze_and_save(args, eval_args, device, generative_model,
                      nodes_dist, prop_dist, dataset_info, n_samples=10,
-                     batch_size=10, save_to_xyz=False):
+                     batch_size=10, save_to_xyz=True):
     batch_size = min(batch_size, n_samples)
     assert n_samples % batch_size == 0
     molecules = {'one_hot': [], 'x': [], 'node_mask': []}
@@ -171,7 +171,7 @@ def main():
     stability_dict, rdkit_metrics = analyze_and_save(
         args, eval_args, device, generative_model, nodes_dist,
         prop_dist, dataset_info, n_samples=eval_args.n_samples,
-        batch_size=eval_args.batch_size_gen, save_to_xyz=eval_args.save_to_xyz)
+        batch_size=eval_args.batch_size_gen, save_to_xyz=True)
     print(stability_dict)
 
     if rdkit_metrics is not None:
