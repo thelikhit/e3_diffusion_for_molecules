@@ -34,7 +34,7 @@ def retrieve_dataloaders(cfg):
             target_samples = 1  # same for all
             if 'train' in datasets:
                 current_dataset = datasets['train']
-                indices = torch.randperm(len(current_dataset))[:target_samples]
+                indices = torch.randperm(len(current_dataset))[:target_samples].repeat(batch_size)
                 shared_subset = Subset(current_dataset, indices)
                 # assign same subset to all
                 datasets['train'] = shared_subset

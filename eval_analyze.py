@@ -128,7 +128,7 @@ def main():
                         help='Specify model path')
     parser.add_argument('--batch_size_gen', type=int, default=100,
                         help='Specify model path')
-    parser.add_argument('--save_to_xyz', type=eval, default=False,
+    parser.add_argument('--save_to_xyz', type=eval, default=True,
                         help='Should save samples to xyz files.')
 
     eval_args, unparsed_args = parser.parse_known_args()
@@ -163,7 +163,7 @@ def main():
         prop_dist.set_normalizer(property_norms)
     generative_model.to(device)
 
-    fn = 'generative_model.npy'
+    fn = 'generative_model_last.npy'
     flow_state_dict = torch.load(join(eval_args.model_path, fn), map_location=device)
     generative_model.load_state_dict(flow_state_dict)
 
@@ -176,7 +176,9 @@ def main():
 
     if rdkit_metrics is not None:
         rdkit_metrics = rdkit_metrics[0]
-        print("Validity %.4f, Uniqueness: %.4f, Novelty: %.4f" % (rdkit_metrics[0], rdkit_metrics[1], rdkit_metrics[2]))
+        metrics_str = "Validity %.4f, Uniqueness: %.4f, Novelty: %.4f" % (rdkit_metrics[0], rdkit_metrics[1], rdkit_metrics[2])
+        with open(join(eval_args.model_path, 'eval_log.txt'), 'w') as f:
+            f.write(metrics_str + '\n')
     else:
         print("Install rdkit roolkit to obtain Validity, Uniqueness, Novelty")
 
@@ -199,7 +201,7 @@ def main():
     print(f'Final test nll {test_nll}')
 
     print(f'Overview: val nll {val_nll} test nll {test_nll}', stability_dict)
-    with open(join(eval_args.model_path, 'eval_log.txt'), 'w') as f:
+    with open(join(eval_args.model_path, 'eval_log.txt'), 'a') as f:
         print(f'Overview: val nll {val_nll} test nll {test_nll}',
               stability_dict,
               file=f)

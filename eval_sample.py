@@ -60,6 +60,7 @@ def save_and_sample_chain(args, eval_args, device, flow,
 def sample_different_sizes_and_save(args, eval_args, device, generative_model,
                                     nodes_dist, dataset_info, n_samples=1):
     # nodesxsample = nodes_dist.sample(n_samples)
+    # we sample same size for now for ablation study
     nodesxsample=torch.tensor([args.filter_n_atoms])
     one_hot, charges, x, node_mask = sample(
         args, device, generative_model, dataset_info,
@@ -73,7 +74,7 @@ def sample_different_sizes_and_save(args, eval_args, device, generative_model,
 
 def sample_only_stable_different_sizes_and_save(
         args, eval_args, device, flow, nodes_dist,
-        dataset_info, n_samples=1, n_tries=1):
+        dataset_info, n_samples=1, n_tries=2):
     # assert n_tries > n_samples
 
     # nodesxsample = nodes_dist.sample(n_tries)
@@ -115,8 +116,6 @@ def main():
     parser.add_argument(
         '--n_tries', type=int, default=10,
         help='N tries to find stable molecule for gif animation')
-    parser.add_argument('--n_nodes', type=int, default=12,
-                        help='number of atoms in molecule for gif animation')
 
     eval_args, unparsed_args = parser.parse_known_args()
 
@@ -124,6 +123,9 @@ def main():
 
     with open(join(eval_args.model_path, 'args.pickle'), 'rb') as f:
         args = pickle.load(f)
+
+    n_nodes = args.filter_n_atoms
+    eval_args.n_nodes = n_nodes
 
     # CAREFUL with this -->
     if not hasattr(args, 'normalization_factor'):
@@ -146,7 +148,7 @@ def main():
         args, device, dataset_info, dataloaders['train'])
     flow.to(device)
 
-    fn = 'generative_model.npy'
+    fn = 'generative_model_last.npy'
     flow_state_dict = torch.load(join(eval_args.model_path, fn),
                                  map_location=device)
 
