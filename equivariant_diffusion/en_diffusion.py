@@ -219,88 +219,34 @@ class ScaledNoiseSchedule(torch.nn.Module):
         else:
             raise ValueError(noise_schedule)
 
-        print('alphas2', alphas2)
-        
-        # sigmas2 = 1 - alphas2
-# 
-        # log_alphas2 = np.log(alphas2)
-        # log_sigmas2 = np.log(sigmas2)
-# 
-        # log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
-# 
-        # print('gamma', -log_alphas2_to_sigmas2)
-# 
-        # self.gamma = torch.nn.Parameter(
-        #     torch.from_numpy(-log_alphas2_to_sigmas2).float(),
-        #     requires_grad=False)
+        sigmas2 = 1 - alphas2
 
-        self.alphas2 = torch.nn.Parameter(
-            torch.from_numpy(alphas2).float(),
+        log_alphas2 = np.log(alphas2)
+        log_sigmas2 = np.log(sigmas2)
+
+        log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
+ 
+        self.gamma = torch.nn.Parameter(
+            torch.from_numpy(-log_alphas2_to_sigmas2).float(),
             requires_grad=False)
-
-
-    def compute_b(self, n_nodes, n_min, n_max, b_min=0.85, b_max=1.15):
-        """
-        As we reduce the scaling factor b, it increases the noise level in the diffusion process
-        Using a smaller scaling factor, more information is destroyed
-        
-        Larger molecules new a faster noise schedule, that is smaller b
-        Smaller molecules need a slower noise schedule, that is larger b
-        NOTE: Inverse relationship between n_nodes and b
-        """
-        
-        b = b_max + (n_nodes - n_min) * (b_min - b_max) / (n_max - n_min)
-        return b
-    
-    def compute_b_inverted(self, n_nodes, n_min, n_max, b_min=0.85, b_max=1.15):
-        b = b_min + (n_nodes - n_min) * (b_max - b_min) / (n_max - n_min)
-        return b
 
 
     def forward(self, t, n_nodes):
 
-        # t_int = torch.round(t * self.timesteps).long()
-        # n_nodes = n_nodes.reshape_as(self.gamma[t_int])
-# 
-        # # min-max scaling
-        # n_nodes_scaled = (n_nodes - self.min_n_nodes) / (self.max_n_nodes - self.min_n_nodes)
-        # n_nodes_scaled_min, n_nodes_scaled_max = 0, 1
-# 
-        # # scale factor between [sf_min, sf_max]
-        # sf_min, sf_max = 0.90, 1.1
-        # sf = sf_min + (n_nodes_scaled - n_nodes_scaled_min) * ((sf_max - sf_min) / (n_nodes_scaled_max - n_nodes_scaled_min))
-# 
-        # scaled_noise = self.gamma[t_int] * sf
-# 
-        # return scaled_noise
+        t_int = torch.round(t * self.timesteps).long()
+        n_nodes = n_nodes.reshape_as(self.gamma[t_int])
 
-        if isinstance(self.alphas2, np.ndarray):
-            alphas2 = torch.from_numpy(alphas2).float()
+        # min-max scaling
+        n_nodes_scaled = (n_nodes - self.min_n_nodes) / (self.max_n_nodes - self.min_n_nodes)
+        n_nodes_scaled_min, n_nodes_scaled_max = 0, 1
 
-        # Get discrete timestep indices
-        timesteps = self.alphas2.shape[0] - 1
-        t_int = torch.round(t * timesteps).long().clamp(0, timesteps)
+        # scale factor between [sf_min, sf_max]
+        sf_min, sf_max = 0.80, 1.20
+        sf = sf_min - (n_nodes_scaled - n_nodes_scaled_min) * ((sf_max - sf_min) / (n_nodes_scaled_max - n_nodes_scaled_min))
 
-        alphas2_t = self.alphas2[t_int].reshape_as(n_nodes)
-        alphas_t = torch.sqrt(alphas2_t)
+        scaled_noise = self.gamma[t_int] * sf
 
-        b = self.compute_b(n_nodes, n_min=self.min_n_nodes, n_max=self.max_n_nodes).to(alphas_t.device)
-
-        alphas_prime = alphas_t * b
-        alphas_prime = torch.clamp(alphas_prime, 1e-12, 1.0 - 1e-12)
-
-        alphas2_prime = alphas_prime ** 2
-        sigmas2_prime = 1.0 - alphas2_prime
-
-        # Avoid log(0) by clamping
-        alphas2_prime = torch.clamp(alphas2_prime, 1e-12, 1.0)
-        sigmas2_prime = torch.clamp(sigmas2_prime, 1e-12, 1.0)
-
-        gammas_prime = -(torch.log(alphas2_prime) - torch.log(sigmas2_prime))
-        # clamp between predefined gamma.min() and gamma.max()
-        gammas_prime = torch.clamp(gammas_prime, -9.2, 9.2)
-
-        return gammas_prime
+        return scaled_noise
 
 
 class PredefinedNoiseSchedule(torch.nn.Module):

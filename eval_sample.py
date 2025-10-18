@@ -18,7 +18,7 @@ from qm9.analyze import check_stability
 from os.path import join
 from qm9.sampling import sample_chain, sample
 from configs.datasets_config import get_dataset_info
-import numpy as p
+import numpy as np
 import random
 
 # deterministic behavior
@@ -145,7 +145,7 @@ def main():
         args, device, dataset_info, dataloaders['train'])
     flow.to(device)
 
-    fn = 'generative_model_ema.npy' if args.ema_decay > 0 else 'generative_model.npy'
+    fn = 'generative_model_last.npy'
     flow_state_dict = torch.load(join(eval_args.model_path, fn),
                                  map_location=device)
 
@@ -165,11 +165,11 @@ def main():
         join(eval_args.model_path, 'eval/molecules/'), dataset_info,
         max_num=10, spheres_3d=True)
 
-    print('Sampling visualization chain.')
-    save_and_sample_chain(
-        args, eval_args, device, flow,
-        n_tries=eval_args.n_tries, n_nodes=eval_args.n_nodes,
-        dataset_info=dataset_info, num_chains=1)
+    # print('Sampling visualization chain.')
+    # save_and_sample_chain(
+    #     args, eval_args, device, flow,
+    #     n_tries=eval_args.n_tries, n_nodes=eval_args.n_nodes,
+    #     dataset_info=dataset_info, num_chains=1)
 
 
 if __name__ == "__main__":
