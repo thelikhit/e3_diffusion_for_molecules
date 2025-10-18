@@ -287,9 +287,6 @@ class EnVariationalDiffusion(torch.nn.Module):
             norm_biases=(None, 0., 0.), include_charges=True, input_scale_factor=1.0):
         super().__init__()
 
-        assert loss_type in {'vlb', 'l2'}
-
-        self.loss_type = loss_type
         self.include_charges = include_charges
 
         # Only supported parametrization.

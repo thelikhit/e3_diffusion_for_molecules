@@ -91,7 +91,6 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                 edge_mask = data['edge_mask'].to(device, dtype)
                 one_hot = data['one_hot'].to(device, dtype)
                 charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
-                num_atoms = data['num_atoms'].to(device, dtype)
 
                 batch_size = x.size(0)
 
@@ -188,19 +187,19 @@ def main():
         val_name = 'valid'
         num_passes = 5
 
-    # Evaluate negative log-likelihood for the validation and test partitions
+    # Evaluate L2 Loss for the validation and test partitions
     val_nll = test(args, generative_model, nodes_dist, device, dtype,
                    dataloaders[val_name],
                    partition='Val')
-    print(f'Final val nll {val_nll}')
+    print(f'Final val loss {val_nll}')
     test_nll = test(args, generative_model, nodes_dist, device, dtype,
                     dataloaders['test'],
                     partition='Test', num_passes=num_passes)
-    print(f'Final test nll {test_nll}')
+    print(f'Final test loss {test_nll}')
 
     print(f'Overview: val nll {val_nll} test nll {test_nll}', stability_dict)
     with open(join(eval_args.model_path, 'eval_log.txt'), 'a') as f:
-        print(f'Overview: val nll {val_nll} test nll {test_nll}',
+        print(f'Overview: val loss {val_nll} test loss {test_nll}',
               stability_dict,
               file=f)
 
