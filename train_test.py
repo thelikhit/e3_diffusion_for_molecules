@@ -116,8 +116,6 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
             loss_epoch += loss.item() * batch_size
             n_samples += batch_size
-            if i % args.n_report_steps == 0:
-                print(f"Epoch: {epoch}, Iter: {i}/{n_iterations}, Loss: {loss_epoch/n_samples:.2f}")
 
     return loss_epoch/n_samples
 
