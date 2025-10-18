@@ -27,44 +27,29 @@ def retrieve_dataloaders(cfg):
         if filter_n_atoms is not None:
             print("Retrieving molecules with only %d atoms" % filter_n_atoms)
             datasets = filter_atoms(datasets, filter_n_atoms)
-            
+
+        def reduce_dataset(datasets, name, n_samples):
+            if name not in datasets:
+                print(f"Warning: '{name}' dataset not found.")
+                return
+            dataset = datasets[name]
+            n = min(len(dataset), n_samples)
+            indices = torch.randperm(len(dataset))[:n]
+            datasets[name] = Subset(dataset, indices)
+
         
-        sample_single_molecule=False
+        sample_single_molecule=False    
         if sample_single_molecule:
-            target_samples = 1  # same for all
             if 'train' in datasets:
-                current_dataset = datasets['train']
-                indices = torch.randperm(len(current_dataset))[:target_samples].repeat(batch_size)
-                shared_subset = Subset(current_dataset, indices)
-                # assign same subset to all
-                datasets['train'] = shared_subset
-                datasets['valid'] = shared_subset
-                datasets['test'] = shared_subset
-                print(f"All datasets (train/val/test) reduced to {len(shared_subset)} identical samples.")
-            else:
-                print("Warning: 'train' dataset not found in initialized datasets.")
+                train = datasets['train']
+                idx = torch.randint(0, len(train), (1,)).repeat(batch_size)
+                subset = Subset(train, idx)
+                for split in ['train', 'valid', 'test']:
+                    datasets[split] = subset
         else:
-            target_train_samples = 1000
-            target_val_samples = 100
-            target_test_samples = 100
-
-            # Function to reduce dataset size
-            def reduce_dataset_size(dataset_name, target_samples):
-                if dataset_name in datasets:
-                    current_dataset = datasets[dataset_name]
-                    if len(current_dataset) > target_samples:
-                        indices = torch.randperm(len(current_dataset))[:target_samples]
-                        datasets[dataset_name] = Subset(current_dataset, indices)
-                        # print(f"Reduced '{dataset_name}' dataset to {len(datasets[dataset_name])} samples.")
-                    # else:
-                        # print(f"'{dataset_name}' dataset already has {len(current_dataset)} samples, no reduction needed.")
-                # else:
-                    # print(f"Warning: '{dataset_name}' dataset not found in the initialized datasets.")
-
-            
-            reduce_dataset_size('train', target_train_samples)
-            reduce_dataset_size('valid', target_val_samples)
-            reduce_dataset_size('test', target_test_samples)
+            reduce_dataset(datasets, 'train', 1000)
+            reduce_dataset(datasets, 'valid', 100)
+            reduce_dataset(datasets, 'test', 100)
         
         # Construct PyTorch dataloaders from datasets
         preprocess = PreprocessQM9(load_charges=cfg.include_charges)

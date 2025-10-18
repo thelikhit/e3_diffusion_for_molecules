@@ -80,7 +80,7 @@ def analyze_and_save(args, eval_args, device, generative_model,
 
 def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num_passes=1):
     flow_dp.eval()
-    nll_epoch = 0
+    loss_epoch = 0
     n_samples = 0
     for pass_number in range(num_passes):
         with torch.no_grad():
@@ -108,14 +108,14 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                     context = None
 
                 # transform batch through flow
-                nll, _, _, _ = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, node_mask,
-                                                        edge_mask, context)
+                loss = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, 
+                                                    node_mask, edge_mask, context)
                 # standard nll from forward KL
 
-                nll_epoch += nll.item() * batch_size
+                loss_epoch += loss.item() * batch_size
                 n_samples += batch_size
 
-    return nll_epoch/n_samples
+    return loss_epoch/n_samples
 
 
 def main():

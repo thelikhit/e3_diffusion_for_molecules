@@ -15,7 +15,7 @@ import torch
 def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim,
                 nodes_dist, gradnorm_queue, dataset_info, prop_dist):
     model.train()
-    nll_epoch = []
+    loss_epoch = []
     n_iterations = len(loader)
     for i, data in enumerate(loader):
         x = data['positions'].to(device, dtype)
@@ -23,7 +23,6 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         edge_mask = data['edge_mask'].to(device, dtype)
         one_hot = data['one_hot'].to(device, dtype)
         charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
-        num_atoms = data['num_atoms'].to(device, dtype)
 
         x = remove_mean_with_mask(x, node_mask)
 
@@ -50,39 +49,26 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         optim.zero_grad()
 
         # transform batch through flow
-        nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
+        train_loss = losses.compute_loss_and_nll(args, model, nodes_dist,
                                                                 x, h, node_mask, edge_mask, context)
         # standard nll from forward KL
-        loss = nll + args.ode_regularization * reg_term
+        loss = train_loss
         loss.backward()
 
         if args.clip_grad:
             grad_norm = utils.gradient_clipping(model, gradnorm_queue)
-        else:
-            grad_norm = 0.
 
         optim.step()
 
-        # if i % args.n_report_steps == 0:
-        #     print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
-        #           f"Loss {loss.item():.2f}, NLL: {nll.item():.2f}, "
-        #           f"RegTerm: {reg_term.item():.1f}, "
-        #           f"GradNorm: {grad_norm:.1f}")
-        nll_epoch.append(nll.item())
-        wandb.log({"Batch NLL": nll.item()}, commit=True)
+        if i % args.n_report_steps == 0:
+            print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
+            
+        loss_epoch.append(loss.item())
+        wandb.log({"Batch Loss": loss.item()}, commit=True)
         if args.break_train_epoch:
             break
-    wandb.log({"Train Epoch NLL": np.mean(nll_epoch)}, commit=False)
-    wandb.log({"Train Epoch Loss": loss.item()}, commit=False)
-    wandb.log({
-        "losses": {
-            "kl_prior": loss_dict['kl_prior'].mean().item(),
-            "error": loss_dict['error'].mean().item(),
-            "estimator_loss_terms": loss_dict['estimator_loss_terms'].mean().item(),
-            "neg_log_constants": loss_dict['neg_log_constants'].mean().item(),
-            "loss_t": loss_dict['loss_t'].mean().item()
-        }
-    }, commit=True)
+    wandb.log({"Train Epoch Loss": np.mean(loss_epoch)}, commit=True)
+
 
 
 def check_mask_correct(variables, node_mask):
@@ -94,9 +80,8 @@ def check_mask_correct(variables, node_mask):
 def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_dist, partition='Test'):
     eval_model.eval()
     with torch.no_grad():
-        nll_epoch = 0
+        loss_epoch = 0
         n_samples = 0
-
         n_iterations = len(loader)
 
         for i, data in enumerate(loader):
@@ -106,14 +91,10 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             edge_mask = data['edge_mask'].to(device, dtype)
             one_hot = data['one_hot'].to(device, dtype)
             charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
-            num_atoms = data['num_atoms'].to(device, dtype)
-
 
             if args.augment_noise > 0:
                 # Add noise eps ~ N(0, augment_noise) around points.
-                eps = sample_center_gravity_zero_gaussian_with_mask(x.size(),
-                                                                    x.device,
-                                                                    node_mask)
+                eps = sample_center_gravity_zero_gaussian_with_mask(x.size(), x.device, node_mask)
                 x = x + eps * args.augment_noise
 
             x = remove_mean_with_mask(x, node_mask)
@@ -129,17 +110,16 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
                 context = None
 
             # transform batch through flow
-            nll, _, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
+            loss = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h, 
                                                     node_mask, edge_mask, context)
             # standard nll from forward KL
 
-            nll_epoch += nll.item() * batch_size
+            loss_epoch += loss.item() * batch_size
             n_samples += batch_size
-            # if i % args.n_report_steps == 0:
-            #     print(f"\r {partition} NLL \t epoch: {epoch}, iter: {i}/{n_iterations}, "
-            #           f"NLL: {nll_epoch/n_samples:.2f}")
+            if i % args.n_report_steps == 0:
+                print(f"Epoch: {epoch}, Iter: {i}/{n_iterations}, Loss: {loss_epoch/n_samples:.2f}")
 
-    return nll_epoch/n_samples
+    return loss_epoch/n_samples
 
 
 def save_and_sample_chain(model, args, device, dataset_info, prop_dist,
