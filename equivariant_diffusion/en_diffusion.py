@@ -598,9 +598,10 @@ class EnVariationalDiffusion(torch.nn.Module):
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
         
         # Concatenate x, h[integer] and h[categorical].
+        x = x * self.input_scale_factor
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
         # Sample z_t given x, h for timestep t, from q(z_t | x, h)
-        z_t = alpha_t * self.input_scale_factor * xh + sigma_t * eps
+        z_t = alpha_t * xh + sigma_t * eps
 
         diffusion_utils.assert_mean_zero_with_mask(z_t[:, :, :self.n_dims], node_mask)
 
@@ -688,6 +689,7 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # Finally sample p(x, h | z_0).
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context=context, fix_noise=fix_noise)
+        x = x / self.input_scale_factor
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 

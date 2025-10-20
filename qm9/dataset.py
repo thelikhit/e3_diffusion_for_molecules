@@ -46,10 +46,10 @@ def retrieve_dataloaders(cfg):
                 subset = Subset(train, idx)
                 for split in ['train', 'valid', 'test']:
                     datasets[split] = subset
-        else:
-            reduce_dataset(datasets, 'train', 1000)
-            reduce_dataset(datasets, 'valid', 100)
-            reduce_dataset(datasets, 'test', 100)
+        
+        reduce_dataset(datasets, 'train', 1000)
+        reduce_dataset(datasets, 'valid', 100)
+        reduce_dataset(datasets, 'test', 100)
         
         # Construct PyTorch dataloaders from datasets
         preprocess = PreprocessQM9(load_charges=cfg.include_charges)
