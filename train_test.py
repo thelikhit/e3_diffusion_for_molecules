@@ -23,6 +23,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         edge_mask = data['edge_mask'].to(device, dtype)
         one_hot = data['one_hot'].to(device, dtype)
         charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+        num_atoms = data['num_atoms'].to(device, dtype)
 
         x = remove_mean_with_mask(x, node_mask)
 
@@ -50,7 +51,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         # transform batch through flow
         train_loss = losses.compute_loss_and_nll(args, model, nodes_dist,
-                                                                x, h, node_mask, edge_mask, context)
+                                                                x, h, node_mask, edge_mask, context, num_atoms)
         # standard nll from forward KL
         loss = train_loss
         loss.backward()
@@ -60,8 +61,8 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         optim.step()
 
-        if i % args.n_report_steps == 0:
-            print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
+        # if i % args.n_report_steps == 0:
+        #     print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
             
         loss_epoch.append(loss.item())
         wandb.log({"Batch Loss": loss.item()}, commit=True)

@@ -309,6 +309,11 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.parametrization = parametrization
         self.input_scale_factor = input_scale_factor
 
+        self.input_scale_factor_mapping = {
+            12.: 8.0,
+            25.: 1.4
+        }
+
         self.norm_values = norm_values
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
@@ -570,7 +575,7 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return log_p_xh_given_z
 
-    def compute_loss(self, x, h, node_mask, edge_mask, context):
+    def compute_loss(self, x, h, node_mask, edge_mask, context, num_atoms):
 
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
 
@@ -597,8 +602,15 @@ class EnVariationalDiffusion(torch.nn.Module):
         eps = self.sample_combined_position_feature_noise(
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
         
+        ###########################################
+        scale_factor = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scale_factor_mapping.items():
+            scale_factor[num_atoms == k] = v
+
+        x = x * scale_factor.to(x).view(-1, 1, 1)
+        ###########################################
+        
         # Concatenate x, h[integer] and h[categorical].
-        x = x * self.input_scale_factor
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
         # Sample z_t given x, h for timestep t, from q(z_t | x, h)
         z_t = alpha_t * xh + sigma_t * eps
@@ -614,8 +626,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Return loss
         return error
 
-    def forward(self, x, h, node_mask=None, edge_mask=None, context=None):
-        return self.compute_loss(x, h, node_mask, edge_mask, context)
+    def forward(self, x, h, node_mask=None, edge_mask=None, context=None, num_atoms=None):
+        return self.compute_loss(x, h, node_mask, edge_mask, context, num_atoms)
 
     def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False):
         """Samples from zs ~ p(zs | zt). Only used during sampling."""
@@ -665,7 +677,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return z
 
     @torch.no_grad()
-    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False):
+    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False, num_atoms=None):
         """
         Draw samples from the generative model.
         """
@@ -689,7 +701,14 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # Finally sample p(x, h | z_0).
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context=context, fix_noise=fix_noise)
-        x = x / self.input_scale_factor
+
+        ###########################################
+        scale_factor = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scale_factor_mapping.items():
+            scale_factor[num_atoms == k] = v
+
+        x = x / scale_factor.to(x).view(-1, 1, 1)
+        ###########################################
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 
@@ -702,7 +721,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return x, h
 
     @torch.no_grad()
-    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None):
+    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None, num_atoms=None):
         """
         Draw samples from the generative model, keep the intermediate states for visualization purposes.
         """
@@ -737,9 +756,18 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 
+        ###########################################
+        scale_factor = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scale_factor_mapping.items():
+            scale_factor[num_atoms == k] = v
+
+        x = x / scale_factor.to(x).view(-1, 1, 1)
+        ###########################################
+
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
         chain[0] = xh  # Overwrite last frame with the resulting x and h.
 
         chain_flat = chain.view(n_samples * keep_frames, *z.size()[1:])
+
 
         return chain_flat

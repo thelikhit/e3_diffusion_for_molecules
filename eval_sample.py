@@ -61,7 +61,7 @@ def sample_different_sizes_and_save(args, eval_args, device, generative_model,
                                     nodes_dist, dataset_info, n_samples=1):
     # nodesxsample = nodes_dist.sample(n_samples)
     # we sample same size for now for ablation study
-    nodesxsample=torch.tensor([args.filter_n_atoms])
+    nodesxsample=torch.tensor([25])
     one_hot, charges, x, node_mask = sample(
         args, device, generative_model, dataset_info,
         nodesxsample=nodesxsample)
@@ -78,7 +78,7 @@ def sample_only_stable_different_sizes_and_save(
     # assert n_tries > n_samples
 
     # nodesxsample = nodes_dist.sample(n_tries)
-    nodesxsample = torch.full((n_tries, ), args.filter_n_atoms)
+    nodesxsample = torch.full((n_tries, ), 25)
     one_hot, charges, x, node_mask = sample(
         args, device, flow, dataset_info,
         nodesxsample=nodesxsample)
@@ -121,7 +121,7 @@ def main():
 
     assert eval_args.model_path is not None
 
-    with open(join(eval_args.model_path, 'args.pickle'), 'rb') as f:
+    with open(join(eval_args.model_path, 'args_last.pickle'), 'rb') as f:
         args = pickle.load(f)
 
     n_nodes = args.filter_n_atoms

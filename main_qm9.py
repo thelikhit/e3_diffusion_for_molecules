@@ -236,29 +236,5 @@ for epoch in range(args.start_epoch, args.n_epochs):
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
     utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
 
-    if epoch % args.test_epochs == 0:
-        loss_val = test(args=args, loader=dataloaders['valid'], epoch=epoch, eval_model=model,
-                        partition='Val', device=device, dtype=dtype, nodes_dist=nodes_dist,
-                        property_norms=property_norms)
-        loss_test = test(args=args, loader=dataloaders['test'], epoch=epoch, eval_model=model,
-                        partition='Test', device=device, dtype=dtype,
-                        nodes_dist=nodes_dist, property_norms=property_norms)
-        
-        utils.save_model(optim, 'outputs/%s/optim_%d.npy' % (args.exp_name, epoch))
-        utils.save_model(model, 'outputs/%s/generative_model_%d.npy' % (args.exp_name, epoch))
-
-        with open('outputs/%s/args_%d.pickle' % (args.exp_name, epoch), 'wb') as f:
-            pickle.dump(args, f)
-
-        if loss_val < best_loss_val:
-            best_loss_val = loss_val
-            best_l2_test = loss_test
-            args.current_epoch = epoch + 1
-            utils.save_model(optim, 'outputs/%s/optim.npy' % args.exp_name)
-            utils.save_model(model, 'outputs/%s/generative_model.npy' % args.exp_name)
-            with open('outputs/%s/args.pickle' % args.exp_name, 'wb') as f:
-                pickle.dump(args, f)
-
-        wandb.log({"Val loss ": loss_val}, commit=True)
-        wandb.log({"Test loss ": loss_test}, commit=True)
-
+with open('outputs/%s/args_last.pickle' % args.exp_name, 'wb') as f:
+    pickle.dump(args, f)

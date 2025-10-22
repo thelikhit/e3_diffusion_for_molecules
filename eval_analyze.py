@@ -51,7 +51,9 @@ def analyze_and_save(args, eval_args, device, generative_model,
     start_time = time.time()
     for i in range(int(n_samples/batch_size)):
         # nodesxsample = nodes_dist.sample(batch_size)
-        nodesxsample = torch.full((batch_size, ), args.filter_n_atoms)
+        # nodesxsample = torch.full((batch_size, ), 25)
+        nodesxsample = torch.cat((torch.full((int(batch_size/2), ), 12), torch.full((int(batch_size/2), ), 25)), 0)
+        print(nodesxsample)
         one_hot, charges, x, node_mask = sample(
             args, device, generative_model, dataset_info, prop_dist=prop_dist, nodesxsample=nodesxsample)
 
@@ -91,6 +93,7 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
                 edge_mask = data['edge_mask'].to(device, dtype)
                 one_hot = data['one_hot'].to(device, dtype)
                 charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+                num_atoms = data['num_atoms'].to(device, dtype)
 
                 batch_size = x.size(0)
 
@@ -108,7 +111,7 @@ def test(args, flow_dp, nodes_dist, device, dtype, loader, partition='Test', num
 
                 # transform batch through flow
                 loss = losses.compute_loss_and_nll(args, flow_dp, nodes_dist, x, h, 
-                                                    node_mask, edge_mask, context)
+                                                    node_mask, edge_mask, context, num_atoms)
                 # standard nll from forward KL
 
                 loss_epoch += loss.item() * batch_size
@@ -132,7 +135,7 @@ def main():
 
     assert eval_args.model_path is not None
 
-    with open(join(eval_args.model_path, 'args.pickle'), 'rb') as f:
+    with open(join(eval_args.model_path, 'args_last.pickle'), 'rb') as f:
         args = pickle.load(f)
 
     # CAREFUL with this -->
@@ -197,7 +200,7 @@ def main():
                     partition='Test', num_passes=num_passes)
     print(f'Final test loss {test_nll}')
 
-    print(f'Overview: val nll {val_nll} test nll {test_nll}', stability_dict)
+    print(f'Overview: Val L2 {round(val_nll, 2)} Test L2 {round(test_nll, 2)} Atom Sta {round(stability_dict['atm_stable'], 4) * 100} Mol Sta {round(stability_dict['mol_stable'], 4) * 100}')
     with open(join(eval_args.model_path, 'eval_log.txt'), 'a') as f:
         print(f'Overview: val loss {val_nll} test loss {test_nll}',
               stability_dict,
