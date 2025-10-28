@@ -18,7 +18,7 @@ import torch
 import time
 import pickle
 from qm9.utils import prepare_context, compute_mean_mad
-from train_test import train_epoch, test, analyze_and_save
+from train_test import train_epoch
 import random
 import numpy as np
 
@@ -117,7 +117,7 @@ parser.add_argument('--normalization_factor', type=float, default=1,
                     help="Normalize the sum aggregation of EGNN")
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
-parser.add_argument('--input_scale_factor', type=float, default=1.0,
+parser.add_argument('--input_scale_factor', type=float, default=None,
                     help='scale factor for input scaling')
 
 args = parser.parse_args()

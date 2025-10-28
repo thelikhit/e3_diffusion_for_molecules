@@ -36,7 +36,7 @@ def retrieve_dataloaders(cfg):
         for dataset in datasets.values():
             dataset.convert_units(qm9_to_eV)
 
-        combine_filtered_n_atoms=True
+        combine_filtered_n_atoms=False
         if combine_filtered_n_atoms:
             datasets_12 = filter_atoms_(datasets, 12)
             datasets_25 = filter_atoms_(datasets, 25)
