@@ -74,7 +74,7 @@ def retrieve_dataloaders(cfg):
 
         dump_dataset_to_file=True
         if dump_dataset_to_file:
-            output_file = "combined_dataset_full_dump.txt"
+            output_file = "dataset_dump.txt"
 
             with open(output_file, "w") as f:
                 for split in ['train', 'valid', 'test']:
