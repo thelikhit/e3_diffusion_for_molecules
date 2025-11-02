@@ -12,7 +12,7 @@ import time
 import torch
 
 
-def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim, optim_gamma,
+def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dtype, property_norms, optim,
                 nodes_dist, gradnorm_queue, dataset_info, prop_dist):
     model.train()
     nll_epoch = []
@@ -55,13 +55,6 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             noise_context = num_atoms.unsqueeze(1)
 
         optim.zero_grad()
-        optim_gamma.zero_grad()
-
-        if epoch < 250 and args.diffusion_noise_schedule == 'learned_adaptive':
-            toy_loss = losses.compute_toy_loss(args, model, x, h, node_mask, edge_mask, context, noise_context)
-            toy_loss.backward()
-            optim_gamma.step()
-            return
                 
         # transform batch through flow
         nll, reg_term, mean_abs_z, loss_dict = losses.compute_loss_and_nll(args, model, nodes_dist,
@@ -76,24 +69,11 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
             grad_norm = 0.
 
         optim.step()
-        optim_gamma.step()
+
+        if i % args.n_report_steps == 0:
+            print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
 
         nll_epoch.append(nll.item())
-        # if (epoch % args.test_epochs == 0) and (i % args.visualize_every_batch == 0) and not (epoch == 0 and i == 0):
-        #     start = time.time()
-        #     if len(args.conditioning) > 0:
-        #         save_and_sample_conditional(args, device, model_ema, prop_dist, dataset_info, epoch=epoch)
-        #     save_and_sample_chain(model_ema, args, device, dataset_info, prop_dist, epoch=epoch,
-        #                           batch_id=str(i))
-        #     sample_different_sizes_and_save(model_ema, nodes_dist, args, device, dataset_info,
-        #                                     prop_dist, epoch=epoch)
-        #     print(f'Sampling took {time.time() - start:.2f} seconds')
-# 
-        #     vis.visualize(f"outputs/{args.exp_name}/epoch_{epoch}_{i}", dataset_info=dataset_info, wandb=wandb)
-        #     vis.visualize_chain(f"outputs/{args.exp_name}/epoch_{epoch}_{i}/chain/", dataset_info, wandb=wandb)
-        #     if len(args.conditioning) > 0:
-        #         vis.visualize_chain("outputs/%s/epoch_%d/conditional/" % (args.exp_name, epoch), dataset_info,
-        #                             wandb=wandb, mode='conditional')
         wandb.log({"Batch NLL": nll.item()}, commit=True)
         if args.break_train_epoch:
             break

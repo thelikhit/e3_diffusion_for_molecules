@@ -22,9 +22,8 @@ def display_noise_schedule():
 
     all_series = []  # list of dicts: {label, alpha, sigma, snr, log_snr, gamma}
 
-    C_VALUE = max(qm9_with_h['n_nodes'].keys())
     RUNS = [
-        {"path": "/home/vinh/likhit/e3_diffusion_for_molecules/outputs/learned_adaptive/generative_model.npy", "label": "learned", "input_dim": 1},
+        {"path": "/home/vinh/likhit/e3_diffusion_for_molecules/outputs/learned_adaptive/generative_model_last.npy", "label": "learned", "input_dim": 1},
     ]
     
     for run in RUNS:
@@ -41,15 +40,15 @@ def display_noise_schedule():
             "snr": snr.cpu(), "log_snr": log_snr.cpu(), "gamma": gamma.cpu()
         })
 
-    # --- PREDEFINED POLYNOMIAL (non-scaled) ---
-    poly_label = f"Polynomial (p={POLY_POWER:g})"
-    poly_sched = PredefinedNoiseSchedule(noise_schedule=f"polynomial_{POLY_POWER}", timesteps=NUM_STEPS, precision=PRECISION).to(DEVICE)
+    # --- fixed schedule (cosine) ---
+    cosine_label = 'cosine'
+    cosine_sched = PredefinedNoiseSchedule(noise_schedule='cosine', timesteps=NUM_STEPS, precision=PRECISION).to(DEVICE)
     with torch.no_grad():
-        gamma_poly = poly_sched(t_norm).squeeze(-1)
-    alpha, sigma, snr, log_snr = gamma_to_curves(gamma_poly)
+        gamma_cosine = cosine_sched(t_norm).squeeze(-1)
+    alpha, sigma, snr, log_snr = gamma_to_curves(gamma_cosine)
     all_series.append({
-        "label": poly_label, "alpha": alpha.cpu(), "sigma": sigma.cpu(),
-        "snr": snr.cpu(), "log_snr": log_snr.cpu(), "gamma": gamma_poly.cpu()
+        "label": cosine_label, "alpha": alpha.cpu(), "sigma": sigma.cpu(),
+        "snr": snr.cpu(), "log_snr": log_snr.cpu(), "gamma": gamma_cosine.cpu()
     })
 
     # ------------------------------------------------------
@@ -69,23 +68,23 @@ def display_noise_schedule():
         plt.grid(True, alpha=0.3)
         plt.legend(fontsize=11)
         plt.tight_layout()
-        plt.savefig('trained_alpha.png', dpi=500, bbox_inches='tight')
+        plt.savefig('learned_'+ y_key + '.png', dpi=500, bbox_inches='tight')
         plt.show()
 
     # α(t)
     plot_metric("alpha", r"$\alpha(t)$", r"$\alpha$")
 
     # σ(t)
-    # plot_metric("sigma", r"$\sigma(t)$", r"$\sigma$")
+    plot_metric("sigma", r"$\sigma(t)$", r"$\sigma$")
 
     # SNR(t) – log scale for clarity
-    # plot_metric("snr", "SNR(t)", "SNR", yscale="log")
+    plot_metric("snr", "SNR(t)", "SNR", yscale="log")
 
     # log-SNR(t)
-    # plot_metric("log_snr", "log-SNR(t)", "log-SNR")
+    plot_metric("log_snr", "log-SNR(t)", "log-SNR")
 
     # γ(t)
-    # plot_metric("gamma", r"$\gamma(t)$", r"$\gamma$")
+    plot_metric("gamma", r"$\gamma(t)$", r"$\gamma$")
 
 
 def extract_gamma_state_dict(ckpt_path: str):

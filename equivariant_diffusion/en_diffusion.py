@@ -419,69 +419,17 @@ class LearnedAdaptiveNoiseSchedule(torch.nn.Module):
 
         return a, b, d
 
-    def forward(self, t, c, initialize=False):
+    def forward(self, t, c):
 
-        if initialize:        
-            t_ = torch.linspace(0.0, 1.0, t.size(0)).view(t.size(0), 1).to(t.device)
-        
-            a_, b_, d_ = self.compute_coefficients(c)
-            polynomial_t_ = self.evaluate_polynomial(a_, b_, d_, t_)
-            ones = torch.ones_like(t_)
-            polynomial_1_ = self.evaluate_polynomial(a_, b_, d_, ones)
-            gamma_t_ = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t_ / polynomial_1_)
-            t_flat = t_.view(-1).detach().cpu().numpy()
-            gamma_t_flat = gamma_t_.view(-1)
-        
-            poly_alpha_square = polynomial_schedule(len(t_)-1, s=1e-4, power=2.0)
-            poly_sigma_square = 1 - poly_alpha_square
-            poly_gamma = - np.log(poly_alpha_square / poly_sigma_square)
-            poly_gamma_torch = torch.from_numpy(poly_gamma).float().to(t.device).reshape_as(gamma_t_)
+        a, b, d = self.compute_coefficients(c)
+        polynomial_t = self.evaluate_polynomial(a, b, d, t)
 
-            plt.plot(t_flat, gamma_t_flat.detach().cpu().numpy(), label='learned adaptive schedule')
-            plt.plot(t_flat, poly_gamma, linestyle='dashed', label='polynomial schedule (power=2)')
-            plt.xlabel('t')
-            plt.ylabel('gamma(t)')
-            plt.title('Learned Adaptive Noise Schedule')
-            plt.grid()
-            plt.legend()
-            plt.savefig('learned_adaptive_noise_schedule_init.png')
-            plt.close()
+        ones = torch.ones_like(t)
+        polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
 
-            return gamma_t_flat, poly_gamma_torch
+        gamma_t = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t / polynomial_1)
 
-        else:
-            # For plotting
-            t_ = torch.linspace(0.0, 1.0, t.size(0)).view(t.size(0), 1).to(t.device)
-
-            a_, b_, d_ = self.compute_coefficients(c)
-            polynomial_t_ = self.evaluate_polynomial(a_, b_, d_, t_)
-            ones = torch.ones_like(t_)
-            polynomial_1_ = self.evaluate_polynomial(a_, b_, d_, ones)
-            gamma_t_ = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t_ / polynomial_1_)
-            gamma_t_flat_ = gamma_t_.view(-1)
-
-            t_ = torch.linspace(0.0, 1.0, t.size(0)).view(t.size(0), 1).to(t.device)
-            t_flat = t_.view(-1).detach().cpu().numpy()
-            poly_alpha_square = polynomial_schedule(len(t_)-1, s=1e-4, power=2.0)
-            poly_sigma_square = 1 - poly_alpha_square
-            poly_gamma = - np.log(poly_alpha_square / poly_sigma_square)
-
-            plt.plot(t_flat, gamma_t_flat_.detach().cpu().numpy(), label='learned adaptive schedule')
-            plt.plot(t_flat, poly_gamma, linestyle='dashed', label='polynomial schedule (power=2)')
-            plt.xlabel('t')
-            plt.ylabel('gamma(t)')
-            plt.title('Learned Adaptive Noise Schedule')
-            plt.grid()
-            plt.legend()
-            plt.savefig('learned_adaptive_noise_schedule_learned.png')
-            plt.close()
-
-            a, b, d = self.compute_coefficients(c)
-            polynomial_t = self.evaluate_polynomial(a, b, d, t)
-            ones = torch.ones_like(t)
-            polynomial_1 = self.evaluate_polynomial(a, b, d, ones)
-            gamma_t = self.gamma_min + (self.gamma_max - self.gamma_min) * (polynomial_t / polynomial_1)
-            return gamma_t
+        return gamma_t
 
 
 def cdf_standard_gaussian(x):
@@ -538,8 +486,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
-        if noise_schedule.scheduler_type not in ['learned', 'learned_adaptive']:
-            self.check_issues_norm_values()
+        # if noise_schedule.scheduler_type not in ['learned', 'learned_adaptive']:
+        #     self.check_issues_norm_values()
 
     def check_issues_norm_values(self, num_stdevs=8):
         zeros = torch.zeros((1, 1))
@@ -994,13 +942,6 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # Normalize data, take into account volume change in x.
         x, h, delta_log_px = self.normalize(x, h, node_mask)
-
-        # initializes noise schedule before training
-        if initialize and isinstance(self.gamma, LearnedAdaptiveNoiseSchedule):
-            t = torch.randint(0, 1001, (x.size(0), 1), device=x.device).float() / 1000
-            gamma_t_, gamma_t_poly = self.gamma(t, noise_context, initialize=True)
-            toy_loss = torch.mean((gamma_t_ - gamma_t_poly) ** 2)
-            return toy_loss
 
         # Reset delta_log_px if not vlb objective.
         if self.training and self.loss_type == 'l2':

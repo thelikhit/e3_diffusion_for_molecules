@@ -37,3 +37,4 @@ commands.txt
 outputs/edm_geom_drugs/*
 data/geom/*
 *.sh
+*.txt

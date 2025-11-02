@@ -21,6 +21,8 @@ from qm9.utils import prepare_context, compute_mean_mad
 from train_test import train_epoch, test, analyze_and_save
 import random
 import numpy as np
+from display_noise_schedule import display_noise_schedule
+
 
 parser = argparse.ArgumentParser(description='E3Diffusion')
 parser.add_argument('--exp_name', type=str, default='debug_10')
@@ -209,7 +211,7 @@ model, nodes_dist, prop_dist = get_model(args, device, dataset_info, dataloaders
 if prop_dist is not None:
     prop_dist.set_normalizer(property_norms)
 model = model.to(device)
-optim, optim_gamma = get_optim(args, model)
+optim = get_optim(args, model)
 
 gradnorm_queue = utils.Queue()
 gradnorm_queue.add(3000)  # Add large value that will be flushed.
@@ -228,14 +230,12 @@ if args.resume is not None:
 
 best_nll_val = 1e8
 best_nll_test = 1e8
-print("FLAG: JOINT TRAINING")
 for epoch in range(args.start_epoch, args.n_epochs):
     start_epoch = time.time()
+    display_noise_schedule()
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
-                optim=optim, optim_gamma=optim_gamma,
-                nodes_dist=nodes_dist, dataset_info=dataset_info,
-                gradnorm_queue=gradnorm_queue, prop_dist=prop_dist)
+                optim=optim, nodes_dist=nodes_dist, dataset_info=dataset_info, gradnorm_queue=gradnorm_queue, prop_dist=prop_dist)
 
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
     utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
