@@ -785,24 +785,15 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return log_p_xh_given_z
 
-    def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always, noise_context=None):
+    def compute_loss(self, x, h, node_mask, edge_mask, context, noise_context=None):
 
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
 
-        # This part is about whether to include loss term 0 always.
-        if t0_always:
-            # loss_term_0 will be computed separately.
-            # estimator = loss_0 + loss_t,  where t ~ U({1, ..., T})
-            lowest_t = 1
-        else:
-            # estimator = loss_t,           where t ~ U({0, ..., T})
-            lowest_t = 0
-
         # Sample a timestep t.
         t_int = torch.randint(
-            lowest_t, self.T + 1, size=(x.size(0), 1), device=x.device).float()
+            0, self.T + 1, size=(x.size(0), 1), device=x.device).float()
         s_int = t_int - 1
-        t_is_zero = (t_int == 0).float()  # Important to compute log p(x | z0).
+        t_is_zero = (t_int == 0).float()  # Important to compute log p(x | z0)
 
         # Normalize t to [0, 1]. Note that the negative
         # step of s will never be used, since then p(x | z0) is computed.
@@ -841,125 +832,13 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Compute the error.
         error = self.compute_error(net_out, gamma_t, eps)
 
-        if self.training and self.loss_type == 'l2':
-            SNR_weight = torch.ones_like(error)
-        else:
-            # Compute weighting with SNR: (SNR(s-t) - 1) for epsilon parametrization.
-            SNR_weight = (self.SNR(gamma_s - gamma_t) - 1).squeeze(1).squeeze(1)
-        assert error.size() == SNR_weight.size()
-        loss_t_larger_than_zero = 0.5 * SNR_weight * error
+        return error
 
-
-        # The _constants_ depending on sigma_0 from the
-        # cross entropy term E_q(z0 | x) [log p(x | z0)].
-        if isinstance(self.gamma, ScaledNoiseSchedule):
-            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask, noise_context=noise_context)
-        elif isinstance (self.gamma, LearnedAdaptiveNoiseSchedule):
-            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask, noise_context=noise_context)
-        else:
-            neg_log_constants = -self.log_constants_p_x_given_z0(x, node_mask)
-
-        # Reset constants during training with l2 loss.
-        if self.training and self.loss_type == 'l2':
-            neg_log_constants = torch.zeros_like(neg_log_constants)
-
-        # The KL between q(z1 | x) and p(z1) = Normal(0, 1). Should be close to zero.
-        if isinstance(self.gamma, ScaledNoiseSchedule):
-            kl_prior = self.kl_prior(xh, node_mask, noise_context=noise_context)
-        elif isinstance(self.gamma, LearnedAdaptiveNoiseSchedule):
-            kl_prior = self.kl_prior(xh, node_mask, noise_context=noise_context)
-        else:
-            kl_prior = self.kl_prior(xh, node_mask)
-
-        # Combining the terms
-        if t0_always:
-            loss_t = loss_t_larger_than_zero
-            num_terms = self.T  # Since t=0 is not included here.
-            estimator_loss_terms = num_terms * loss_t
-
-            # Compute noise values for t = 0.
-            t_zeros = torch.zeros_like(s)
-                    
-            if isinstance(self.gamma, ScaledNoiseSchedule):
-                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, noise_context), x)
-            elif isinstance(self.gamma, LearnedAdaptiveNoiseSchedule):
-                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros, noise_context), x)
-            else:
-                gamma_0 = self.inflate_batch_array(self.gamma(t_zeros), x)
-            alpha_0 = self.alpha(gamma_0, x)
-            sigma_0 = self.sigma(gamma_0, x)
-
-            # Sample z_0 given x, h for timestep t, from q(z_t | x, h)
-            eps_0 = self.sample_combined_position_feature_noise(
-                n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
-            z_0 = alpha_0 * xh + sigma_0 * eps_0
-
-            net_out = self.phi(z_0, t_zeros, node_mask, edge_mask, context)
-
-            loss_term_0 = -self.log_pxh_given_z0_without_constants(
-                x, h, z_0, gamma_0, eps_0, net_out, node_mask)
-
-            assert kl_prior.size() == estimator_loss_terms.size()
-            assert kl_prior.size() == neg_log_constants.size()
-            assert kl_prior.size() == loss_term_0.size()
-
-            loss = kl_prior + estimator_loss_terms + neg_log_constants + loss_term_0
-
-        else:
-            # Computes the L_0 term (even if gamma_t is not actually gamma_0)
-            # and this will later be selected via masking.
-            loss_term_0 = -self.log_pxh_given_z0_without_constants(
-                x, h, z_t, gamma_t, eps, net_out, node_mask)
-
-            t_is_not_zero = 1 - t_is_zero
-
-            loss_t = loss_term_0 * t_is_zero.squeeze() + t_is_not_zero.squeeze() * loss_t_larger_than_zero
-
-            # Only upweigh estimator if using the vlb objective.
-            if self.training and self.loss_type == 'l2':
-                estimator_loss_terms = loss_t
-            else:
-                num_terms = self.T + 1  # Includes t = 0.
-                estimator_loss_terms = num_terms * loss_t
-
-            assert kl_prior.size() == estimator_loss_terms.size()
-            assert kl_prior.size() == neg_log_constants.size()
-
-            loss = kl_prior + estimator_loss_terms + neg_log_constants
-
-        assert len(loss.shape) == 1, f'{loss.shape} has more than only batch dim.'
-
-        loss_dict = {'t': t_int.squeeze(), 'loss_t': loss.squeeze(),
-                      'error': error.squeeze(), 'kl_prior': kl_prior, 
-                      'estimator_loss_terms': estimator_loss_terms, 'neg_log_constants': neg_log_constants, 'loss_term_0': loss_term_0}
-
-        return loss, loss_dict
-
-    def forward(self, x, h, node_mask=None, edge_mask=None, context=None, noise_context=None, initialize=False):
+    def forward(self, x, h, node_mask=None, edge_mask=None, context=None, noise_context=None):
         """
         Computes the loss (type l2 or NLL) if training. And if eval then always computes NLL.
         """
-
-        # Normalize data, take into account volume change in x.
-        x, h, delta_log_px = self.normalize(x, h, node_mask)
-
-        # Reset delta_log_px if not vlb objective.
-        if self.training and self.loss_type == 'l2':
-            delta_log_px = torch.zeros_like(delta_log_px)
-
-        if self.training:
-            # Only 1 forward pass when t0_always is False.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=False, noise_context=noise_context)
-        else:
-            # Less variance in the estimator, costs two forward passes.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=True, noise_context=noise_context)
-
-        neg_log_pxh = loss
-
-        # Correct for normalization on x.
-        assert neg_log_pxh.size() == delta_log_px.size()
-        neg_log_pxh = neg_log_pxh - delta_log_px
-        return neg_log_pxh, loss_dict
+        return self.compute_loss(x, h, node_mask, edge_mask, context, noise_context=noise_context)
 
     def sample_p_zs_given_zt(self, s, t, zt, node_mask, edge_mask, context, fix_noise=False, noise_context=None):
         """Samples from zs ~ p(zs | zt). Only used during sampling."""

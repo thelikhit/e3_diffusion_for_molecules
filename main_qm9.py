@@ -18,7 +18,7 @@ import torch
 import time
 import pickle
 from qm9.utils import prepare_context, compute_mean_mad
-from train_test import train_epoch, test, analyze_and_save
+from train_test import train_epoch, analyze_and_save
 import random
 import numpy as np
 from display_noise_schedule import display_noise_schedule
@@ -228,42 +228,16 @@ if args.resume is not None:
     model.load_state_dict(model_state_dict)
     optim.load_state_dict(optim_state_dict)
 
-best_nll_val = 1e8
-best_nll_test = 1e8
-for epoch in range(args.start_epoch, args.n_epochs):
-    start_epoch = time.time()
-    display_noise_schedule()
+best_loss_val = 1e8
+best_loss_test = 1e8
+for epoch in range(args.start_epoch, args.n_epochs):        
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
-                optim=optim, nodes_dist=nodes_dist, dataset_info=dataset_info, gradnorm_queue=gradnorm_queue, prop_dist=prop_dist)
-
+                nodes_dist=nodes_dist, dataset_info=dataset_info,
+                gradnorm_queue=gradnorm_queue, optim=optim, prop_dist=prop_dist)
+    display_noise_schedule()
     utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
     utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
 
-    if epoch % args.test_epochs == 0:
-        nll_val = test(args=args, loader=dataloaders['valid'], epoch=epoch, eval_model=model,
-                        partition='Val', device=device, dtype=dtype, nodes_dist=nodes_dist,
-                        property_norms=property_norms)
-        nll_test = test(args=args, loader=dataloaders['test'], epoch=epoch, eval_model=model,
-                        partition='Test', device=device, dtype=dtype,
-                        nodes_dist=nodes_dist, property_norms=property_norms)
-        
-        utils.save_model(optim, 'outputs/%s/optim_%d.npy' % (args.exp_name, epoch))
-        utils.save_model(model, 'outputs/%s/generative_model_%d.npy' % (args.exp_name, epoch))
-
-        with open('outputs/%s/args_%d.pickle' % (args.exp_name, epoch), 'wb') as f:
-            pickle.dump(args, f)
-
-        if nll_val < best_nll_val:
-            best_nll_val = nll_val
-            best_nll_test = nll_test
-            args.current_epoch = epoch + 1
-            utils.save_model(optim, 'outputs/%s/optim.npy' % args.exp_name)
-            utils.save_model(model, 'outputs/%s/generative_model.npy' % args.exp_name)
-            with open('outputs/%s/args.pickle' % args.exp_name, 'wb') as f:
-                pickle.dump(args, f)
-
-        wandb.log({"Val loss ": nll_val}, commit=True)
-        wandb.log({"Test loss ": nll_test}, commit=True)
-        wandb.log({"Best cross-validated test loss ": best_nll_test}, commit=True)
-
+with open('outputs/%s/args_last.pickle' % args.exp_name, 'wb') as f:
+    pickle.dump(args, f)
