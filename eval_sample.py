@@ -59,9 +59,8 @@ def save_and_sample_chain(args, eval_args, device, flow,
 
 def sample_different_sizes_and_save(args, eval_args, device, generative_model,
                                     nodes_dist, dataset_info, n_samples=1):
-    nodesxsample = nodes_dist.sample(n_samples)
-    # we sample same size for now for ablation study
-    # nodesxsample=torch.tensor([args.filter_n_atoms])
+    # nodesxsample = nodes_dist.sample(n_samples)
+    nodesxsample=torch.tensor([args.filter_n_atoms])
     one_hot, charges, x, node_mask = sample(
         args, device, generative_model, dataset_info,
         nodesxsample=nodesxsample)
@@ -77,8 +76,8 @@ def sample_only_stable_different_sizes_and_save(
         dataset_info, n_samples=1, n_tries=2):
     # assert n_tries > n_samples
 
-    nodesxsample = nodes_dist.sample(n_tries)
-    # nodesxsample = torch.full((n_tries, ), args.filter_n_atoms)
+    # nodesxsample = nodes_dist.sample(n_tries)
+    nodesxsample = torch.full((n_tries, ), args.filter_n_atoms)
     one_hot, charges, x, node_mask = sample(
         args, device, flow, dataset_info,
         nodesxsample=nodesxsample)

@@ -22,6 +22,9 @@ from qm9 import visualizer as qm9_visualizer
 import qm9.losses as losses
 import numpy as np
 import random
+import csv
+from datetime import datetime
+from os.path import join, exists
 
 try:
     from qm9 import rdkit_functions
@@ -50,9 +53,8 @@ def analyze_and_save(args, eval_args, device, generative_model,
     molecules = {'one_hot': [], 'x': [], 'node_mask': []}
     start_time = time.time()
     for i in range(int(n_samples/batch_size)):
-        nodesxsample = nodes_dist.sample(batch_size)
-        # nodesxsample = torch.full((batch_size, ), args.filter_n_atoms)
-        # nodesxsample = torch.cat((torch.full((int(batch_size/2), ), 12), torch.full((int(batch_size/2), ), 25)), 0)
+        # nodesxsample = nodes_dist.sample(batch_size)
+        nodesxsample = torch.full((batch_size, ), args.filter_n_atoms)
         one_hot, charges, x, node_mask = sample(
             args, device, generative_model, dataset_info, prop_dist=prop_dist, nodesxsample=nodesxsample)
 
@@ -166,6 +168,10 @@ def main():
     flow_state_dict = torch.load(join(eval_args.model_path, fn), map_location=device)
     generative_model.load_state_dict(flow_state_dict)
 
+    # used to calculate validity, uniqueness, novelty. 
+    # not needed
+    rdkit_metrics = None
+
     # Analyze stability, validity, uniqueness and novelty
     stability_dict, rdkit_metrics = analyze_and_save(
         args, eval_args, device, generative_model, nodes_dist,
@@ -189,6 +195,19 @@ def main():
         val_name = 'valid'
         num_passes = 5
 
+    # append to csv log
+    header = [
+        'timestamp',
+        'filter_n_atoms',
+        'input_scale_factor',
+        'diffusion_loss_type',
+        'diffusion_noise_schedule',
+        'val_l2',
+        'test_l2',
+        'atm_stable',
+        'mol_stable'
+    ]
+
     # Evaluate L2 Loss for the validation and test partitions
     val_nll = test(args, generative_model, nodes_dist, device, dtype,
                    dataloaders[val_name],
@@ -204,6 +223,29 @@ def main():
         print(f'Overview: val loss {val_nll} test loss {test_nll}',
               stability_dict,
               file=f)
+
+    csv_path = 'input_scaling_evaluation_log.csv'    
+    timestamp = datetime.now().isoformat(timespec='seconds')
+
+    breakpoint()
+    row = [
+        timestamp,
+        getattr(args, 'filter_n_atoms', None),
+        getattr(args, 'input_scale_factor', None),
+        getattr(args, 'diffusion_loss_type', None),
+        getattr(args, 'diffusion_noise_schedule', None),
+        val_nll,
+        test_nll,
+        stability_dict['atm_stable'],
+        stability_dict['mol_stable']
+    ]
+
+    write_header = not exists(csv_path)
+    with open(csv_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        if write_header:
+            writer.writerow(header)
+        writer.writerow(row)
 
 
 if __name__ == "__main__":

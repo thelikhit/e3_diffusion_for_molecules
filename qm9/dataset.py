@@ -36,35 +36,17 @@ def retrieve_dataloaders(cfg):
         for dataset in datasets.values():
             dataset.convert_units(qm9_to_eV)
 
-        combine_filtered_n_atoms=False
-        if combine_filtered_n_atoms:
-            datasets_12 = filter_atoms_(datasets, 12)
-            datasets_25 = filter_atoms_(datasets, 25)
+        if filter_n_atoms is not None:
+            print("Retrieving molecules with only %d atoms" % filter_n_atoms)
+            datasets = filter_atoms(datasets, filter_n_atoms)
 
-            datasets_12['train'] = reduce_dataset_(datasets_12, 'train', 500)
-            datasets_12['valid'] = reduce_dataset_(datasets_12, 'valid', 50)
-            datasets_12['test'] = reduce_dataset_(datasets_12, 'test', 50)
-
-            datasets_25['train'] = reduce_dataset_(datasets_25, 'train', 500)
-            datasets_25['valid'] = reduce_dataset_(datasets_25, 'valid', 50)
-            datasets_25['test'] = reduce_dataset_(datasets_25, 'test', 50)
-            datasets = {}
-            for split in ['train', 'valid', 'test']:
-                datasets[split] = ConcatDataset([
-                    datasets_12[split],
-                    datasets_25[split]
-                ])
-        else:
-            if filter_n_atoms is not None:
-                print("Retrieving molecules with only %d atoms" % filter_n_atoms)
-                datasets = filter_atoms(datasets, filter_n_atoms)
-            reduce_dataset(datasets, 'train', 1000)
-            reduce_dataset(datasets, 'valid', 100)
-            reduce_dataset(datasets, 'test', 100)
-
+        reduce_dataset(datasets, 'train', 1000)
+        reduce_dataset(datasets, 'valid', 100)
+        reduce_dataset(datasets, 'test', 100)
         
         sample_single_molecule=False    
         if sample_single_molecule:
+            print("Retrieving a single molecule with only %d atoms" % filter_n_atoms)
             if 'train' in datasets:
                 train = datasets['train']
                 idx = torch.randint(0, len(train), (1,)).repeat(batch_size)
@@ -75,7 +57,6 @@ def retrieve_dataloaders(cfg):
         dump_dataset_to_file=True
         if dump_dataset_to_file:
             output_file = "dataset_dump.txt"
-
             with open(output_file, "w") as f:
                 for split in ['train', 'valid', 'test']:
                     f.write(f"=== {split.upper()} DATASET ===\n")
@@ -131,8 +112,6 @@ def retrieve_dataloaders(cfg):
 
 def combine_and_retrieve_dataloaders(cfg_qm9, cfg_drugs):
     raise NotImplementedError
-    
-
 
 def filter_atoms(datasets, n_nodes):
     for key in datasets:
@@ -145,16 +124,6 @@ def filter_atoms(datasets, n_nodes):
         datasets[key].perm = None
     return datasets
 
-def filter_atoms_(datasets, n_nodes):
-    filtered_datasets = copy.deepcopy(datasets)    
-    for key in filtered_datasets:
-        filtered_dataset = filtered_datasets[key]
-        idxs = filtered_dataset.data['num_atoms'] == n_nodes
-        for key2 in filtered_dataset.data:
-            filtered_dataset.data[key2] = filtered_dataset.data[key2][idxs]
-        filtered_datasets[key].num_pts = filtered_dataset.data['one_hot'].size(0)
-        filtered_datasets[key].perm = None
-    return filtered_datasets
 
 def reduce_dataset(datasets, name, n_samples):
     if name not in datasets:
@@ -165,12 +134,3 @@ def reduce_dataset(datasets, name, n_samples):
     indices = torch.randperm(len(dataset))[:n]
     datasets[name] = Subset(dataset, indices)
     return datasets[name]
-
-
-def reduce_dataset_(input_dataset, name, n_samples):
-    input_dataset_split = input_dataset[name]
-    n = min(len(input_dataset_split), n_samples)
-    gen = torch.Generator().manual_seed(int(seed))
-    indices = torch.randperm(len(input_dataset_split), generator=gen)[:n]
-    reduced_dataset = Subset(copy.deepcopy(input_dataset_split), indices)
-    return reduced_dataset
