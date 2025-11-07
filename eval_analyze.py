@@ -128,7 +128,7 @@ def main():
 
     assert eval_args.model_path is not None
 
-    with open(join(eval_args.model_path, 'args_last.pickle'), 'rb') as f:
+    with open(join(eval_args.model_path, 'args.pickle'), 'rb') as f:
         args = pickle.load(f)
 
     # CAREFUL with this -->
@@ -197,6 +197,7 @@ def main():
     # append to csv log
     header = [
         'timestamp',
+        'seed',
         'filter_n_atoms',
         'input_scale_factor',
         'diffusion_loss_type',
@@ -228,6 +229,7 @@ def main():
 
     row = [
         timestamp,
+        getattr(args, 'seed', None),
         getattr(args, 'filter_n_atoms', None),
         getattr(args, 'input_scale_factor', None),
         getattr(args, 'diffusion_loss_type', None),

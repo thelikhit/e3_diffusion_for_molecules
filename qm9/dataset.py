@@ -128,6 +128,11 @@ def reduce_dataset(datasets, name, n_samples):
         return
     dataset = datasets[name]
     n = min(len(dataset), n_samples)
-    indices = torch.randperm(len(dataset))[:n]
+
+    if n < n_samples:
+        multiplier = (n_samples + n - 1) // n
+        dataset = ConcatDataset([dataset] * multiplier)
+
+    indices = torch.randperm(len(dataset))[:n_samples]
     datasets[name] = Subset(dataset, indices)
     return datasets[name]

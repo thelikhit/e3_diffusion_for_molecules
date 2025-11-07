@@ -120,7 +120,7 @@ def main():
 
     assert eval_args.model_path is not None
 
-    with open(join(eval_args.model_path, 'args_last.pickle'), 'rb') as f:
+    with open(join(eval_args.model_path, 'args.pickle'), 'rb') as f:
         args = pickle.load(f)
 
     n_nodes = args.filter_n_atoms
