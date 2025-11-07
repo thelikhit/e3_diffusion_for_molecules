@@ -37,7 +37,7 @@ parser.add_argument('--diffusion_noise_schedule', type=str, default='polynomial_
 parser.add_argument('--diffusion_noise_precision', type=float, default=1e-5,
                     )
 parser.add_argument('--diffusion_loss_type', type=str, default='l2',
-                    help='vlb, l2')
+                    help='vlb, l2, l2_norm_by_num_atoms, l2_norm_by_scale_factor, l2_norm_by_dim')
 
 parser.add_argument('--n_epochs', type=int, default=200)
 parser.add_argument('--batch_size', type=int, default=128)
@@ -219,21 +219,19 @@ def check_mask_correct(variables, node_mask):
             assert_correctly_masked(variable, node_mask)
 
 if args.resume is not None:
-    model_state_dict = torch.load(join(args.resume, 'generative_model_last.npy'), map_location=device)
-    optim_state_dict = torch.load(join(args.resume, 'optim_last.npy'), map_location=device)
+    model_state_dict = torch.load(join(args.resume, 'generative_model.npy'), map_location=device)
+    optim_state_dict = torch.load(join(args.resume, 'optim.npy'), map_location=device)
     model.load_state_dict(model_state_dict)
     optim.load_state_dict(optim_state_dict)
 
-best_loss_val = 1e8
-best_loss_test = 1e8
 for epoch in range(args.start_epoch, args.n_epochs):
     train_epoch(args=args, loader=dataloaders['train'], epoch=epoch, model=model, model_dp=None,
                 model_ema=None, ema=None, device=device, dtype=dtype, property_norms=property_norms,
                 nodes_dist=nodes_dist, dataset_info=dataset_info,
                 gradnorm_queue=gradnorm_queue, optim=optim, prop_dist=prop_dist)
 
-    utils.save_model(model, f'outputs/{args.exp_name}/generative_model_last.npy')
-    utils.save_model(optim, f'outputs/{args.exp_name}/optim_last.npy')
+    utils.save_model(model, f'outputs/{args.exp_name}/generative_model.npy')
+    utils.save_model(optim, f'outputs/{args.exp_name}/optim.npy')
 
-with open('outputs/%s/args_last.pickle' % args.exp_name, 'wb') as f:
+with open('outputs/%s/args.pickle' % args.exp_name, 'wb') as f:
     pickle.dump(args, f)

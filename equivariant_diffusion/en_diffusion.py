@@ -308,6 +308,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.parametrization = parametrization
 
         self.input_scale_factor = input_scale_factor
+        self.loss_type = loss_type
             
         self.norm_values = norm_values
         self.norm_biases = norm_biases
@@ -455,8 +456,21 @@ class EnVariationalDiffusion(torch.nn.Module):
 
     def compute_error(self, net_out, gamma_t, eps):
         """Computes error, i.e. the most likely prediction of x."""
+
+        # self.loss_type in ['l2', 'l2_norm_by_num_atoms', 'l2_norm_by_scale_factor', l2_norm_by_dim]
+
         eps_t = net_out
-        error = sum_except_batch((eps - eps_t) ** 2)
+
+        if self.loss_type == 'l2_norm_by_dim':
+            denom = (self.n_dims + self.in_node_nf) * eps_t.shape[1]
+            error = sum_except_batch((eps - eps_t) ** 2) / denom
+        elif self.loss_type == 'l2_norm_by_num_atoms':
+            error = sum_except_batch((eps - eps_t) ** 2) / eps_t.shape[1]
+        elif self.loss_type == 'l2_norm_by_scale_factor':
+            error = sum_except_batch((eps - eps_t) ** 2) / (self.input_scale_factor ** 2)
+        else:
+            error = sum_except_batch((eps - eps_t) ** 2)
+
         return error
 
     def log_constants_p_x_given_z0(self, x, node_mask, context=None):

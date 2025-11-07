@@ -163,7 +163,7 @@ def main():
         prop_dist.set_normalizer(property_norms)
     generative_model.to(device)
 
-    fn = 'generative_model_last.npy'
+    fn = 'generative_model.npy'
     flow_state_dict = torch.load(join(eval_args.model_path, fn), map_location=device)
     generative_model.load_state_dict(flow_state_dict)
 
