@@ -226,7 +226,6 @@ def main():
     csv_path = 'input_scaling_evaluation_log.csv'    
     timestamp = datetime.now().isoformat(timespec='seconds')
 
-    breakpoint()
     row = [
         timestamp,
         getattr(args, 'filter_n_atoms', None),
