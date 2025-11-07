@@ -117,19 +117,18 @@ parser.add_argument('--normalization_factor', type=float, default=1,
                     help="Normalize the sum aggregation of EGNN")
 parser.add_argument('--aggregation_method', type=str, default='sum',
                     help='"sum" or "mean"')
-parser.add_argument('--input_scale_factor', type=float, default=None,
+parser.add_argument('--input_scale_factor', type=float, default=1.0,
                     help='scale factor for input scaling')
+parser.add_argument('--seed', type=int, default=42,
+                    help='random seed for reproducibility')
 
 args = parser.parse_args()
 print(args)
 
-
-# deterministic behavior
-seed = 42
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
+torch.manual_seed(args.seed)
+torch.cuda.manual_seed_all(args.seed)
+np.random.seed(args.seed)
+random.seed(args.seed)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 

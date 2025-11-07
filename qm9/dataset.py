@@ -8,17 +8,15 @@ import torch
 import numpy as np
 import random
 
-# deterministic behavior
-seed = 42
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-
-
 def retrieve_dataloaders(cfg):
+
+    torch.manual_seed(cfg.seed)
+    torch.cuda.manual_seed_all(cfg.seed)
+    np.random.seed(cfg.seed)
+    random.seed(cfg.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
     if 'qm9' in cfg.dataset:
         batch_size = cfg.batch_size
         num_workers = cfg.num_workers
@@ -123,7 +121,6 @@ def filter_atoms(datasets, n_nodes):
         datasets[key].num_pts = dataset.data['one_hot'].size(0)
         datasets[key].perm = None
     return datasets
-
 
 def reduce_dataset(datasets, name, n_samples):
     if name not in datasets:
