@@ -38,3 +38,11 @@ outputs/edm_geom_drugs/*
 data/geom/*
 *.sh
 output_logs/
+visualizations/
+*.ipynb
+*.ipynb_checkpoints
+*.pickle
+*.csv
+*.jpeg
+*.png
+*.txt
