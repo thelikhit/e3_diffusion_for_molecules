@@ -39,7 +39,6 @@ data/geom/*
 *.sh
 output_logs/
 visualizations/
-*.ipynb
 *.ipynb_checkpoints
 *.pickle
 *.csv
