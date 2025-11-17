@@ -45,8 +45,8 @@ def analyze_and_save(args, eval_args, device, generative_model,
     molecules = {'one_hot': [], 'x': [], 'node_mask': []}
     start_time = time.time()
     for i in range(int(n_samples/batch_size)):
-        # nodesxsample = nodes_dist.sample(batch_size)
-        nodesxsample = torch.full((batch_size, ), args.filter_n_atoms)
+        nodesxsample = nodes_dist.sample(batch_size)
+        # nodesxsample = torch.full((batch_size, ), args.filter_n_atoms)
         one_hot, charges, x, node_mask = sample(
             args, device, generative_model, dataset_info, prop_dist=prop_dist, nodesxsample=nodesxsample)
 

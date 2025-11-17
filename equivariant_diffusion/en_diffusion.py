@@ -1,6 +1,3 @@
-# https://g.co/gemini/share/c347c8c3437d
-# https://g.co/gemini/share/566a84066310
-
 from equivariant_diffusion import utils
 import numpy as np
 import math
@@ -11,6 +8,7 @@ from egnn.models import EGNN_dynamics_QM9
 from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
 from configs.datasets_config import get_dataset_info
+from equivariant_diffusion.mapping import input_scales
 
 # Defining some useful util functions.
 def expm1(x: torch.Tensor) -> torch.Tensor:
@@ -307,7 +305,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.T = timesteps
         self.parametrization = parametrization
 
-        self.input_scale_factor = input_scale_factor
+        # self.input_scale_factor = input_scale_factor
+        self.input_scales = input_scales
         self.loss_type = loss_type
             
         self.norm_values = norm_values
@@ -612,7 +611,10 @@ class EnVariationalDiffusion(torch.nn.Module):
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
     
         # scale molecule coordinates
-        x = x * self.input_scale_factor
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+           scaling[num_atoms == k] = v
+        x = x * scaling.to(x).view(-1, 1, 1)
 
         # Concatenate x, h[integer] and h[categorical].
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
@@ -707,7 +709,10 @@ class EnVariationalDiffusion(torch.nn.Module):
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context=context, fix_noise=fix_noise)
 
         # de-scale molecule coordinates
-        x = x / self.input_scale_factor
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+            scaling[num_atoms == k] = v
+        x = x / scaling.to(x).view(-1, 1, 1)
 
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 
@@ -754,7 +759,10 @@ class EnVariationalDiffusion(torch.nn.Module):
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context)
 
         # de-scale molecule coordinates
-        x = x / self.input_scale_factor
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+            scaling[num_atoms == k] = v
+        x = x / scaling.to(x).view(-1, 1, 1)
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 

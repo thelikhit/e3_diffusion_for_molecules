@@ -61,8 +61,9 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         optim.step()
 
-        # if i % args.n_report_steps == 0:
-        #    print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
+        args.n_report_steps = 500
+        if i % args.n_report_steps == 0:
+           print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, Loss {loss.item():.2f}, GradNorm: {grad_norm:.1f}")
             
         loss_epoch.append(loss.item())
         wandb.log({"Batch Loss": loss.item()}, commit=True)

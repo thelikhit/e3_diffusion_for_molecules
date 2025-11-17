@@ -38,9 +38,9 @@ def retrieve_dataloaders(cfg):
             print("Retrieving molecules with only %d atoms" % filter_n_atoms)
             datasets = filter_atoms(datasets, filter_n_atoms)
 
-        reduce_dataset(datasets, 'train', 1000)
-        reduce_dataset(datasets, 'valid', 100)
-        reduce_dataset(datasets, 'test', 100)
+        # reduce_dataset(datasets, 'train', 1000)
+        # reduce_dataset(datasets, 'valid', 100)
+        # reduce_dataset(datasets, 'test', 100)
         
         sample_single_molecule=False    
         if sample_single_molecule:
@@ -52,7 +52,7 @@ def retrieve_dataloaders(cfg):
                 for split in ['train', 'valid', 'test']:
                     datasets[split] = subset
 
-        dump_dataset_to_file=True
+        dump_dataset_to_file=False
         if dump_dataset_to_file:
             output_file = "dataset_dump.txt"
             with open(output_file, "w") as f:
