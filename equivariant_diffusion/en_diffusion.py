@@ -5,6 +5,7 @@ import torch
 from egnn import models
 from torch.nn import functional as F
 from equivariant_diffusion import utils as diffusion_utils
+from equivariant_diffusion.input_scale_mapping import input_scale_mapping
 
 
 # Defining some useful util functions.
@@ -291,6 +292,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         self.norm_biases = norm_biases
         self.register_buffer('buffer', torch.zeros(1))
 
+        self.input_scales = input_scale_mapping
+
         if noise_schedule != 'learned':
             self.check_issues_norm_values()
 
@@ -304,10 +307,8 @@ class EnVariationalDiffusion(torch.nn.Module):
         max_norm_value = max(self.norm_values[1], self.norm_values[2])
 
         if sigma_0 * num_stdevs > 1. / max_norm_value:
-            raise ValueError(
-                f'Value for normalization value {max_norm_value} probably too '
-                f'large with sigma_0 {sigma_0:.5f} and '
-                f'1 / norm_value = {1. / max_norm_value}')
+            print(
+                f'Value for normalization value {max_norm_value} probably too large with sigma_0 {sigma_0:.5f} and 1 / norm_value = {1. / max_norm_value}')
 
     def phi(self, x, t, node_mask, edge_mask, context):
         net_out = self.dynamics._forward(t, x, node_mask, edge_mask, context)
@@ -563,7 +564,7 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         return log_p_xh_given_z
 
-    def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always):
+    def compute_loss(self, x, h, node_mask, edge_mask, context, t0_always, num_atoms=None):
         """Computes an estimator for the variational lower bound, or the simple loss (MSE)."""
 
         # This part is about whether to include loss term 0 always.
@@ -597,6 +598,12 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Sample zt ~ Normal(alpha_t x, sigma_t)
         eps = self.sample_combined_position_feature_noise(
             n_samples=x.size(0), n_nodes=x.size(1), node_mask=node_mask)
+        
+        # scale molecule coordinates
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+           scaling[num_atoms == k] = v
+        x = x * scaling.to(x).view(-1, 1, 1)
 
         # Concatenate x, h[integer] and h[categorical].
         xh = torch.cat([x, h['categorical'], h['integer']], dim=2)
@@ -685,7 +692,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return loss, {'t': t_int.squeeze(), 'loss_t': loss.squeeze(),
                       'error': error.squeeze()}
 
-    def forward(self, x, h, node_mask=None, edge_mask=None, context=None):
+    def forward(self, x, h, node_mask=None, edge_mask=None, context=None, num_atoms=None):
         """
         Computes the loss (type l2 or NLL) if training. And if eval then always computes NLL.
         """
@@ -698,10 +705,10 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         if self.training:
             # Only 1 forward pass when t0_always is False.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=False)
+            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=False, num_atoms=num_atoms)
         else:
             # Less variance in the estimator, costs two forward passes.
-            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=True)
+            loss, loss_dict = self.compute_loss(x, h, node_mask, edge_mask, context, t0_always=True, num_atoms=num_atoms)
 
         neg_log_pxh = loss
 
@@ -758,7 +765,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return z
 
     @torch.no_grad()
-    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False):
+    def sample(self, n_samples, n_nodes, node_mask, edge_mask, context, fix_noise=False, num_atoms=None):
         """
         Draw samples from the generative model.
         """
@@ -782,6 +789,12 @@ class EnVariationalDiffusion(torch.nn.Module):
         # Finally sample p(x, h | z_0).
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context, fix_noise=fix_noise)
 
+        # de-scale molecule coordinates
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+            scaling[num_atoms == k] = v
+        x = x / scaling.to(x).view(-1, 1, 1)
+
         diffusion_utils.assert_mean_zero_with_mask(x, node_mask)
 
         max_cog = torch.sum(x, dim=1, keepdim=True).abs().max().item()
@@ -793,7 +806,7 @@ class EnVariationalDiffusion(torch.nn.Module):
         return x, h
 
     @torch.no_grad()
-    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None):
+    def sample_chain(self, n_samples, n_nodes, node_mask, edge_mask, context, keep_frames=None, num_atoms=None):
         """
         Draw samples from the generative model, keep the intermediate states for visualization purposes.
         """
@@ -825,6 +838,12 @@ class EnVariationalDiffusion(torch.nn.Module):
 
         # Finally sample p(x, h | z_0).
         x, h = self.sample_p_xh_given_z0(z, node_mask, edge_mask, context)
+
+        # de-scale molecule coordinates
+        scaling = torch.full_like(num_atoms, 1.0, dtype=torch.float32)
+        for k, v in self.input_scales.items():
+            scaling[num_atoms == k] = v
+        x = x / scaling.to(x).view(-1, 1, 1)
 
         diffusion_utils.assert_mean_zero_with_mask(x[:, :, :self.n_dims], node_mask)
 

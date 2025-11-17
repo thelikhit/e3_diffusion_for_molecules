@@ -24,6 +24,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         edge_mask = data['edge_mask'].to(device, dtype)
         one_hot = data['one_hot'].to(device, dtype)
         charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+        num_atoms = data['num_atoms'].to(device, dtype)
 
         x = remove_mean_with_mask(x, node_mask)
 
@@ -51,7 +52,7 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
 
         # transform batch through flow
         nll, reg_term, mean_abs_z = losses.compute_loss_and_nll(args, model_dp, nodes_dist,
-                                                                x, h, node_mask, edge_mask, context)
+                                                                x, h, node_mask, edge_mask, context, num_atoms=num_atoms)
         # standard nll from forward KL
         loss = nll + args.ode_regularization * reg_term
         loss.backward()
@@ -66,28 +67,14 @@ def train_epoch(args, loader, epoch, model, model_dp, model_ema, ema, device, dt
         # Update EMA if enabled.
         if args.ema_decay > 0:
             ema.update_model_average(model_ema, model)
-
-        if i % args.n_report_steps == 0:
+        
+        if i == len(loader) - 1:
             print(f"\rEpoch: {epoch}, iter: {i}/{n_iterations}, "
                   f"Loss {loss.item():.2f}, NLL: {nll.item():.2f}, "
                   f"RegTerm: {reg_term.item():.1f}, "
                   f"GradNorm: {grad_norm:.1f}")
-        nll_epoch.append(nll.item())
-        if (epoch % args.test_epochs == 0) and (i % args.visualize_every_batch == 0) and not (epoch == 0 and i == 0):
-            start = time.time()
-            if len(args.conditioning) > 0:
-                save_and_sample_conditional(args, device, model_ema, prop_dist, dataset_info, epoch=epoch)
-            save_and_sample_chain(model_ema, args, device, dataset_info, prop_dist, epoch=epoch,
-                                  batch_id=str(i))
-            sample_different_sizes_and_save(model_ema, nodes_dist, args, device, dataset_info,
-                                            prop_dist, epoch=epoch)
-            print(f'Sampling took {time.time() - start:.2f} seconds')
 
-            vis.visualize(f"outputs/{args.exp_name}/epoch_{epoch}_{i}", dataset_info=dataset_info, wandb=wandb)
-            vis.visualize_chain(f"outputs/{args.exp_name}/epoch_{epoch}_{i}/chain/", dataset_info, wandb=wandb)
-            if len(args.conditioning) > 0:
-                vis.visualize_chain("outputs/%s/epoch_%d/conditional/" % (args.exp_name, epoch), dataset_info,
-                                    wandb=wandb, mode='conditional')
+        nll_epoch.append(nll.item())
         wandb.log({"Batch NLL": nll.item()}, commit=True)
         if args.break_train_epoch:
             break
@@ -115,6 +102,7 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
             edge_mask = data['edge_mask'].to(device, dtype)
             one_hot = data['one_hot'].to(device, dtype)
             charges = (data['charges'] if args.include_charges else torch.zeros(0)).to(device, dtype)
+            num_atoms = data['num_atoms'].to(device, dtype)
 
             if args.augment_noise > 0:
                 # Add noise eps ~ N(0, augment_noise) around points.
@@ -137,12 +125,12 @@ def test(args, loader, epoch, eval_model, device, dtype, property_norms, nodes_d
 
             # transform batch through flow
             nll, _, _ = losses.compute_loss_and_nll(args, eval_model, nodes_dist, x, h,
-                                                    node_mask, edge_mask, context)
+                                                    node_mask, edge_mask, context, num_atoms=num_atoms)
             # standard nll from forward KL
 
             nll_epoch += nll.item() * batch_size
             n_samples += batch_size
-            if i % args.n_report_steps == 0:
+            if i == len(loader) - 1:
                 print(f"\r {partition} NLL \t epoch: {epoch}, iter: {i}/{n_iterations}, "
                       f"NLL: {nll_epoch/n_samples:.2f}")
 
