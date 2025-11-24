@@ -41,7 +41,6 @@ output_logs/
 visualizations/
 *.ipynb_checkpoints
 *.pickle
-*.csv
 *.jpeg
 *.png
 *.txt
