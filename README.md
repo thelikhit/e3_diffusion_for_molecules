@@ -83,3 +83,5 @@ To use a pre-trained generator and classifier model for alpha you can use the fo
 
 
 # adaptive_noise_schedule
+
+```python main_qm9.py --n_epochs 3000 --exp_name edm_qm9_learned_adaptive --n_stability_samples 1000 --diffusion_noise_schedule learned_adaptive --diffusion_noise_context num_atoms --diffusion_noise_precision 1e-5 --diffusion_steps 1000 --diffusion_loss_type l2 --batch_size 64 --nf 256 --n_layers 9 --lr 1e-4 --normalize_factors [1,4,10] --test_epochs 20 --ema_decay 0.9999```
